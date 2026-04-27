@@ -6,6 +6,7 @@ from environment.simulator.core.engine import SimulatorEngine
 from environment.core.reward import (
     RewardFunction,
     SLARewardFunction,
+    RegularizedSLARewardFunction,
     CaseRewardContext,
 )
 from environment.core.mask import (
@@ -48,6 +49,7 @@ class BusinessProcessEnvironment(gym.Env):
 
         self.simulator.reset(max_cases=self.max_cases)
         self.completed_cases = 0
+        self._case_activity_probs: dict = {}
 
         state, _ = self._advance_to_next_decision()
         return state, {}
@@ -62,6 +64,11 @@ class BusinessProcessEnvironment(gym.Env):
 
         # Capture the case receiving this decision before advancing
         current_case = self.simulator.get_case_needing_decision()
+
+        # Capture routing probability of the chosen activity before applying the decision
+        probs_dict = self.simulator.setup.routing_policy.get_activity_probabilities(current_case)
+        chosen_prob = float(probs_dict.get(activity_type, 0.0))
+        self._case_activity_probs[id(current_case)] = chosen_prob  # overwrite keeps latest decision
 
         # Apply decision to simulator (it will resume the process_case)
         self.simulator.apply_decision(activity_type, resource)
@@ -83,11 +90,13 @@ class BusinessProcessEnvironment(gym.Env):
                 start_time=current_case.start_time,
                 end_time=now,
                 is_completed=False,
+                chosen_activity_prob=chosen_prob,
             )
             reward += self.reward_function.compute(ctx)
 
         # Terminal reward for all completed cases
         for case in completed:
+            case_prob = self._case_activity_probs.pop(id(case), 1.0)
             ctx = CaseRewardContext(
                 cycle_time=case.cycle_time,
                 sla_threshold=self.sla_threshold,
@@ -95,6 +104,7 @@ class BusinessProcessEnvironment(gym.Env):
                 start_time=case.start_time,
                 end_time=case.end_time,
                 is_completed=True,
+                chosen_activity_prob=case_prob,
             )
             reward += self.reward_function.compute(ctx)
             self.completed_cases += 1

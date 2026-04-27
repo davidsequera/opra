@@ -22,6 +22,7 @@ class CaseRewardContext:
     start_time: float
     end_time: float
     is_completed: bool = True
+    chosen_activity_prob: float = 1.0  # as-is routing probability of the chosen activity
 
 
 class RewardFunction(ABC):
@@ -102,6 +103,40 @@ class SLARewardFunction(RewardFunction):
                 reward = -K
 
         return reward
+
+class RegularizedSLARewardFunction(SLARewardFunction):
+    """
+    SLA reward with distributional regularization on positive signals.
+
+    Positive rewards are scaled by (alpha * (Prob(A) - 1) + 1), where
+    Prob(A) is the as-is routing probability of the chosen activity.
+    Negative rewards are unchanged so SLA violations are not softened.
+
+    alpha=0  →  identical to SLARewardFunction (no regularization).
+    alpha=1, Prob(A)=1  →  multiplier=1 (action aligns with original dist).
+    alpha=1, Prob(A)=0  →  multiplier=0 (action impossible in original dist).
+
+    Parameters
+    ----------
+    K : float
+        Passed through to SLARewardFunction.
+    alpha : float
+        Regularization strength. 0 disables regularization; 1 fully scales
+        rewards by the as-is routing probability.
+    """
+
+    def __init__(self, K: float = 1.0, alpha: float = 0.0):
+        super().__init__(K=K)
+        self.alpha = alpha
+
+    def compute(self, ctx: CaseRewardContext) -> float:
+        base = super().compute(ctx)
+        if base > 0:
+            multiplier = self.alpha * (ctx.chosen_activity_prob - 1.0) + 1.0
+            print(f"{base:.4f}", f"{multiplier:.4f}", f"{(base*multiplier):.4f}")
+            return base * multiplier
+        return base
+
 
 class BinaryRewardFunction(RewardFunction):
     """

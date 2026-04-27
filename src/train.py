@@ -22,6 +22,7 @@ from contextlib import nullcontext
 from initializer.implementations.DDPSInitializer import DDPSInitializer
 from environment.simulator.core.setup import SimulationSetup
 from environment.core.env import BusinessProcessEnvironment
+from environment.core.reward import RegularizedSLARewardFunction
 from environment.core.mask import NucleusMaskFunction
 from environment.simulator.core.log_names import LogColumnNames
 from environment.simulator.core.engine import SimulatorEngine
@@ -53,6 +54,7 @@ def parse_args():
     parser.add_argument("--top_p", type=float, default=0.9, help="Nucleus filtering for activity mask")
     parser.add_argument("--top_k", type=int, default=3, help="Top-k filtering for activity mask")
     parser.add_argument("--p_min_end", type=float, default=0.1, help="Minimum end probability for activity mask")
+    parser.add_argument("--alpha", type=float, default=0.0, help="Distributional regularization strength (0=off, 1=full)")
     return parser.parse_args()
 
 
@@ -197,13 +199,14 @@ def main():
     baseline_cr = np.mean(np.array(original_cycle_times) < sla_threshold)
     print(f"SLA Threshold (p{args.percentile}): {sla_threshold:.2f}s")
     print(f"Baseline CR (original log): {baseline_cr:.2%}")
-    print(f"Parameters: episodes={args.episodes}, max_cases={args.max_cases}, lr={args.lr}, gamma={args.gamma}, top_p={args.top_p}, top_k={args.top_k}, p_min_end={args.p_min_end}")
+    print(f"Parameters: episodes={args.episodes}, max_cases={args.max_cases}, lr={args.lr}, gamma={args.gamma}, top_p={args.top_p}, top_k={args.top_k}, p_min_end={args.p_min_end}, alpha={args.alpha}")
     # --- Environment ---
     env = BusinessProcessEnvironment(
         simulator,
         sla_threshold=sla_threshold,
         max_cases=args.max_cases,
         activity_mask_function=NucleusMaskFunction(k=args.top_k, p=args.top_p, p_min_end=args.p_min_end),
+        reward_function=RegularizedSLARewardFunction(alpha=args.alpha),
     )
 
     # --- Agent ---
@@ -234,6 +237,7 @@ def main():
         "top_p": args.top_p,
         "top_k": args.top_k,
         "p_min_end": args.p_min_end,
+        "alpha": args.alpha,
     }
     tracker = TrainingMetricsTracker(log_dir=run_dir, hyperparams=hyperparams)
 
