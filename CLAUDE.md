@@ -53,7 +53,7 @@ For RL:
 SimulatorEngine (RL mode)
     -> BusinessProcessEnvironment (Gymnasium wrapper)
     -> PPOAgent selects (activity, resource) at each decision point
-    -> reward = +1 per case completing within SLA threshold
+    -> reward = RewardFunction.compute(case_context)
 ```
 
 ### Key components
@@ -68,12 +68,11 @@ SimulatorEngine (RL mode)
 **`src/environment/simulator/core/setup.py` — `SimulationSetup`**
 - Frozen dataclass holding all policies: `routing_policy`, `processing_time_policy`, `waiting_time_policy`, `arrival_policy`, `calendar_policy`, `resource_policy`.
 
-**`src/initializer/` — Initializers**
-- `DDPSInitializer`: builds all policies empirically from the event log (Markov routing, sampled processing times, weekly calendar grid).
+**`src/initializer/implementations/DDPSInitializer.py` — Initializers**
+- `DDPSInitializer`: builds all policies empirically from the event log (Markov routing, sampled processing times, weekly calendar grid, waiting times).
 - `ParametricInitializer` (extends `DDPSInitializer`): overrides arrival (Exponential distribution) and processing time (Normal distribution) to use fitted parametric models.
-- `_build_waiting_time_policy` is a stub returning `None` in both initializers.
 
-**`src/environment/environment.py` — `BusinessProcessEnvironment`**
+**`src/environment/core/env.py` — `BusinessProcessEnvironment`**
 - Gymnasium `Env` wrapping `SimulatorEngine`.
 - `action_space`: `MultiDiscrete([num_activities, num_resources])`.
 - State vector `s ∈ ℝ^d`, `d = 3|R| + 2|A| + 5`, structured in four blocks:
@@ -81,8 +80,17 @@ SimulatorEngine (RL mode)
   - **Demand** (|A|): per activity — pending demand `κ_j` (cases awaiting execution)
   - **Case** (|A|+3): branching probabilities `b_c`, last activity `ℓ_c`, trace length `λ_c`, SLA urgency `φ_c`
   - **Temporal** (2): hour of day `τ_h`, day of week `τ_d`
-- Reward: `+1` per case meeting SLA, `0` otherwise.
+- Reward computed by pluggable `RewardFunction` — see **Reward functions** section below.
 - Activity/resource masks enforce valid transitions and skill constraints.
+
+**`src/environment/core/reward.py` — Reward Functions**
+- `RewardFunction` (ABC): base class for reward computation.
+- `CaseRewardContext`: encapsulates case metrics (cycle_time, sla_threshold, num_events, is_completed, chosen_activity_prob).
+- `SLARewardFunction` (K=1.0): two-part reward with intermediate and terminal signals. 
+  - Intermediate (case not yet completed): `r = ±K/10 × (ct/T)` directional signal based on SLA proximity.
+  - Terminal (case completed): `r = +K` if `ct < T`, else `-K`.
+- `RegularizedSLARewardFunction` (K=1.0, alpha=0.0): extends `SLARewardFunction` with distributional regularization. Positive rewards are scaled by `α(Prob(A) − 1) + 1`, where `Prob(A)` is the as-is routing probability of the chosen activity. This encourages the agent to stay close to the empirical routing distribution.
+- `BinaryRewardFunction`: simple baseline (`+1` if SLA met, `0` otherwise).
 
 **`src/agent/agent.py` — `PPOAgent` / `PPOPolicy`**
 - Hierarchical action selection: activity head first, then resource head conditioned on chosen activity via embedding.
@@ -90,17 +98,18 @@ SimulatorEngine (RL mode)
 
 ### Policies
 
-All policies live under `src/environment/simulator/policies/` (abstract base classes) with implementations in `src/environment/simulator/models/`:
+All policies live under `src/environment/simulator/policies/` (abstract base classes) with implementations in `src/environment/simulator/implementations/`:
 
 | Policy | Empirical | Parametric |
 |---|---|---|
 | Routing | `ProbabilisticRoutingPolicy` (1st-order Markov), `SecondOrderRoutingPolicy` (2nd-order Markov) | — |
-| Processing Time | `EmpiricalProcessingTimePolicy` | `NormalProcessingTimePolicy` |
-| Arrival | `EmpiricalArrivalPolicy` | `ExponentialArrivalPolicy` |
-| Calendar | `WeeklyCalendarPolicy` (7×24 grid) | — |
+| Processing Time | `EmpiricalResourceActivityProcessingTimePolicy` | `NormalProcessingTimePolicy` |
+| Arrival | `EmpiricalArrivalPolicy`, `WeeklyArrivalPolicy` | `ExponentialArrivalPolicy` |
+| Calendar | `WeeklyCalendarPolicy` (7×24 global grid), `WeeklyResourceCalendarPolicy` (per-resource availability) | — |
+| Waiting Time | `ExtraneousWaitingTimePolicy` (stratified by activity-resource pair) | — |
 | Resource | `SkillBasedResourcePolicy` | — |
 
-To add a new policy: implement the abstract base in `policies/`, place the implementation in `models/`, and wire it in the relevant `Initializer.build()`.
+To add a new policy: implement the abstract base in `policies/`, place the implementation in `implementations/`, and wire it in the relevant `Initializer.build()`.
 
 ### Time semantics
 
@@ -130,13 +139,19 @@ The process optimization problem is framed as an MDP:
 
 Activity masks use **top-k / top-p** (nucleus) filtering over learned branching probabilities to keep agent decisions within plausible process behavior. Resource masks enforce skill constraints (`resource.skills` must contain the chosen activity). Both masks are applied as `-1e9` logit fill before softmax, which is the standard approach.
 
-### Reward function (thesis definition)
+### Reward function
 
-The thesis defines a two-part reward:
-- **Intermediate**: `r(σ) = K / ct(σ)` — directional signal per completed case.
-- **Terminal**: `+r(σ)` if `ct(σ) < T`, else `-K`.
+The thesis targets a two-part reward encouraging SLA compliance:
+- **Intermediate** (case not yet completed): directional signal based on cycle time proximity to SLA threshold `T`.
+- **Terminal** (case completed): binary bonus `+K` if `ct < T`, else penalty `-K`.
 
-The current implementation in `environment.py` uses a simplified version (`+1` if SLA met, `0` otherwise). The full two-part reward is the intended target.
+**Current implementations** (in `src/environment/core/reward.py`):
+
+1. **`SLARewardFunction`** — the primary implementation, which replaces the prior simplified version. For intermediate states: linear scaling `(K/1000) × (1 − ct/T)` when on track, or `−(K/10) × (ct/T)` when overdue. Matches the thesis definition's intent.
+
+2. **`RegularizedSLARewardFunction`** — extends `SLARewardFunction` with an optional distributional regularization term (`alpha` parameter). Scales positive rewards by the empirical routing probability of the chosen activity, encouraging the agent to stay near the learned process distribution while rewarding SLA improvements. Set `alpha=0` to disable regularization (default behavior = `SLARewardFunction`).
+
+3. **`BinaryRewardFunction`** — legacy simplified version (kept for baselines and ablations).
 
 
 ### Evaluation
@@ -159,6 +174,6 @@ Simulated logs are compared against the original using the `log-distance-measure
 
 ## Known issues / stubs
 
-- `DDPSInitializer._build_waiting_time_policy()` returns `None` — `WaitingTimePolicy` is not yet implemented.
 - `ResourceAllocationPolicy` and `StoppingPolicy` are planned but not fully implemented.
 - The engine guards against infinite loops via `max_cases`, but zero-duration activities can still cause issues.
+- `RegularizedSLARewardFunction` contains debug print statements (line 136 of `reward.py`) that should be removed in production use.
