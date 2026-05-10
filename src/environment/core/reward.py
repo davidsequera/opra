@@ -59,7 +59,7 @@ class SLARewardFunction(RewardFunction):
             to 0 when the cycle time approaches the SLA threshold.
 
         If ct ≥ T:
-            R(σ) = -K/1000 * (ct / T)
+            R(σ) = -K/100 * (ct / T)
 
             The penalty grows linearly as the cycle time exceeds
             the SLA threshold.
@@ -93,7 +93,7 @@ class SLARewardFunction(RewardFunction):
         if ct < T:
             reward = (K/1000) * (1.0 - ct / T)  # Linear: 1→0 as you approach T
         else:
-            reward = -(K/10) * (ct / T)        # Increasingly negative past T
+            reward = -(K/100) * (ct / T)        # Increasingly negative past T
 
         # Terminal: case completed
         if ctx.is_completed:

@@ -19,7 +19,7 @@ workspace {
 
 
                 state_representation = component "State Representation" "Encodes the current state of the simulation for the agent."
-                mask = component "Mask Actions" "Applies Top-K / Top-P masking to the action space based on the current state and decision boundary."
+                mask = component "Mask Actions" "Applies top-k, top-p, and minimum terminal probability (p_end^min) filters to the activity mask, and skill-based filtering to the resource mask, restricting the action space to a process-consistent and feasible subset."
                 action_selector = component "Action Selector" "Selects an action (Activity, Resource) from the masked action space based on agent predictions."
                 reward = component "Calculate Reward" "Computes the reward signal based on simulation outcomes and performance metrics."
                 update_env = component "Update Environment" "Updates the environment state based on executed actions and simulation feedback."
@@ -112,7 +112,7 @@ workspace {
             opra_system.agent.activities_policy -> opra_system.environment.mask "Environment masks acitivity from the agent"
             opra_system.agent.resource_policy -> opra_system.environment.mask "Environment masks resource from the agent"
             
-            opra_system.environment.mask -> opra_system.environment.action_selector "Environment applies Top-K / Top-P masking to the agent's action space"
+            opra_system.environment.mask -> opra_system.environment.action_selector "Environment applies top-k, top-p, and minimum terminal probability filters to the agent's action space"
 
             opra_system.environment.action_selector -> opra_system.simulator.processing_time_policy "Selected action (Activity, Resource) is executed in the simulator"
             opra_system.environment.action_selector -> opra_system.simulator.waiting_time_policy "Selected action (Activity, Resource) is executed in the simulator"
