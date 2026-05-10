@@ -25,14 +25,29 @@ All scripts must be run from the **project root** (not from `src/`), as they use
 # Basic DDPS simulation
 python src/simulate.py
 
-# RL experiment (PPO agent)
-python src/main.py
+# Train the full DRL-DRL agent
+python src/train.py --log_path data/logs/AcademicCredentials/AcademicCredentials_train.csv \
+    --episodes 300 --max_cases 400 --percentile 75 \
+    --top_k 2 --top_p 0.9 --p_min_end 0.3 --alpha 0.0 \
+    --run_name AcademicCredentials_DDPS_p75_300_400_tp90_tk2_pe30_a0_full
 
-# Evaluate simulated logs vs original
-python src/evaluate.py
+# Train the resource-only DM-DRL agent
+python src/train_resource_only.py --log_path data/logs/AcademicCredentials/AcademicCredentials_train.csv \
+    --episodes 300 --max_cases 400 --percentile 75 \
+    --top_k 2 --top_p 0.9 --p_min_end 0.3 \
+    --run_name AcademicCredentials_DDPS_p75_300_400_tp90_tk2_pe30_a0_resource_only
+
+# Train both variants for all registered logs (orchestrator, in-process)
+python src/train_all.py
+
+# Evaluate one (log, policy) combo using the library helper
+python src/run_single_evaluation.py
+
+# Evaluate the full (log × policy) matrix and emit comparison CSVs
+python src/run_matrix_evaluation.py
 ```
 
-Output logs land in `data/simulated_logs/PurchasingExample/`.
+Trained checkpoints land in `data/training_models/<run_name>/checkpoints/`. Evaluation outputs live in `data/evaluation_results/<log>/<policy>/` plus aggregated CSVs at the matrix root.
 
 ## Architecture
 
@@ -92,9 +107,25 @@ SimulatorEngine (RL mode)
 - `RegularizedSLARewardFunction` (K=1.0, alpha=0.0): extends `SLARewardFunction` with distributional regularization. Positive rewards are scaled by `α(Prob(A) − 1) + 1`, where `Prob(A)` is the as-is routing probability of the chosen activity. This encourages the agent to stay close to the empirical routing distribution.
 - `BinaryRewardFunction`: simple baseline (`+1` if SLA met, `0` otherwise).
 
-**`src/agent/agent.py` — `PPOAgent` / `PPOPolicy`**
-- Hierarchical action selection: activity head first, then resource head conditioned on chosen activity via embedding.
+**`src/agent/JointAgent/agent.py` — `PPOAgent` / `PPOPolicy`**
+- Full DRL-DRL agent. Hierarchical action selection: activity head first, then resource head conditioned on the chosen activity via embedding.
 - Activity and resource masks applied as `-1e9` logit fill before sampling.
+
+**`src/agent/ResourcesOnlyAgent/resource_only_agent.py` — `PPOResourceOnlyAgent` / `PPOResourceOnlyPolicy`**
+- DM-DRL backbone: same architecture minus the activity head. Activity is supplied externally each step (during training, sampled from `EmpiricalDMActivitySelector`).
+- Exposes the same `policy_old.get_resource_logits(state, activity)` shape as the full agent so the evaluation `DRLResourceSelector` is agnostic to which agent it holds.
+
+### Policy interfaces are a hexagonal boundary
+
+Policies under `src/environment/simulator/policies/` are the **ports** of the hexagonal architecture — abstract contracts between the simulator core and any pluggable implementation (empirical sampler, parametric distribution, future ML predictor, …). Treat them as stable.
+
+Rules of thumb:
+
+- **Do NOT add methods to a policy ABC just because a single consumer wants something specific.** Adding `get_expected_duration` to `ProcessingTimePolicy` to support one heuristic baseline silently breaks every existing implementation and forces every future implementation (e.g. an LSTM-based duration predictor) to provide it — even when "expected value" isn't a natural concept for that model.
+- **Build the consumer's logic outside the policy**, using only the existing public interface. Example: `GreedyProcessingTimeResourceSelector` in `src/evaluation/selectors/resource.py` estimates the expected duration by averaging N draws of `policy.get_activity_duration(...)`. The policy stays unaware of the consumer; consumers can be added, removed, or specialized freely.
+- **If the interface really needs to change**, propose it explicitly. An interface change is a contract change: every existing subclass must be updated, and the abstract method must remain meaningful for plausible future implementations (otherwise it's a leaky abstraction). Don't sneak the change in through a default implementation either — defaults hide the cost of an API decision and the next implementation will either ignore the method or reimplement it inconsistently.
+
+This applies to all policy ABCs: `RoutingPolicy`, `ProcessingTimePolicy`, `ArrivalPolicy`, `CalendarPolicy`, `WaitingTimePolicy`, `ResourceAllocationPolicy`. The selector layer (`src/evaluation/selectors/`) and any future heuristic should respect the same boundary.
 
 ### Policies
 
@@ -154,26 +185,72 @@ The thesis targets a two-part reward encouraging SLA compliance:
 3. **`BinaryRewardFunction`** — legacy simplified version (kept for baselines and ablations).
 
 
-### Evaluation
+### Evaluation framework
 
-Simulated logs are compared against the original using the `log-distance-measures` package (`src/evaluate.py`) across:
+Library-style — the matrix script is just an orchestrator over composable parts. All evaluation code lives in `src/evaluation/`:
+
+```
+src/evaluation/
+    selectors/
+        activity.py     # ActivitySelector + Random / GreedyProb / EmpiricalDM / DRL
+        resource.py     # ResourceSelector + Random / DRL
+        factory.py      # build_policy(name, agent, rng) -> (act_sel, res_sel)
+    runner.py           # run_episode(env, simulator, act_sel, res_sel) — one episode loop
+    experiment.py       # evaluate_policy_on_log(...) — K runs for ONE (log, policy)
+    csv_export.py       # writes runs_long.csv / runs_wide.csv / aggregated.csv
+    metrics/            # PolicyEvaluator + per-run PerformanceResult / SimilarityResult
+                        # + aggregation (mean ± 95% CI via t-distribution)
+    training/           # TrainingMetricsTracker, EpisodeMetrics, UpdateMetrics, etc.
+```
+
+**Selector abstraction.** Every decision policy is an `(ActivitySelector, ResourceSelector)` pair. `run_episode` is the single integration point — the same loop drives RA-RR, DM-RR, DM-GR, DM-DRL, and DRL-DRL. To add a policy, implement one or both interfaces; no env or runner changes needed.
+
+**Single (log, policy) experiment.** `evaluate_policy_on_log(...)` builds the setup, loads the right checkpoint (full PPOAgent for DRL-DRL, PPOResourceOnlyAgent for DM-DRL, none for the rest), runs K simulations, exports per-run CSV logs, and returns `(AggregatedResults, list[per_run_record])`. Use it from `run_single_evaluation.py` or directly in a notebook.
+
+**Matrix.** `run_matrix_evaluation.py` loops `(log × policy)`, sharing one `PolicyEvaluator` per log so reference compliance baselines for CIR are identical across policies. Combinations whose checkpoints don't exist are skipped (logged at the end). `--resume` re-derives metrics from previously-exported simulated logs without re-simulating.
+
+**Three CSV shapes**, all from the same in-memory record list:
+- `runs_long.csv` — `log, policy, run_id, metric, value` for melt/groupby plotting.
+- `runs_wide.csv` — one row per `(log, policy, run_id)`, one column per metric.
+- `aggregated.csv` — one row per `(log, policy)` with `<metric>_mean` and `<metric>_ci95` columns. The paper table.
+
+**Per-policy `results.json`** is also written under `output_dir/<log>/<policy>/` for backward compat with the prior pipeline.
+
+**Performance metrics** (`src/evaluation/metrics/functions/performance_metrics.py`): per-threshold CR (T95/T90/T75/T50), CIR (compliance improvement ratio vs. original log), cycle time (mean/median/std/quantiles), resource utilization CV.
+
+**Similarity metrics** (`src/evaluation/metrics/functions/similarity_metrics.py`) wrap the `log-distance-measures` package:
 - **Control-flow**: N-gram distance (NGD)
 - **Temporal**: Absolute (AED), Circadian (CED), and Relative (RED) event distributions
 - **Resource**: Circadian Workforce Distribution (CWD)
 - **Congestion**: Case Arrival Rate (CAR) and Cycle Time Distribution (CTD)
 
-### Baselines (for comparison when implementing new policies)
+### Baselines
 
-| Name | Activity selection | Resource selection |
-|---|---|---|
-| RA-RR | Proportional to branching probs | Random |
-| GP-RR | Greedy (argmax branching prob) | Random |
-| DM-RR | ML model (LSTM) | Random |
-| DM-DRL | ML model (LSTM) | DRL agent |
-| DRL-AR | DRL agent (joint) | DRL agent (joint) |
+The five evaluation policies (`src/evaluation/selectors/factory.py::build_policy`):
+
+Names follow `{activity}-{resource}`:
+
+| Name    | Activity selection                                | Resource selection                                  | Checkpoint           |
+|---------|---------------------------------------------------|-----------------------------------------------------|----------------------|
+| RA-RR   | Random uniform over feasible activities            | Random over feasible                                 | —                    |
+| DM-RR   | Sample from routing-policy probabilities (the "DM")| Random                                              | —                    |
+| DM-GR   | Sample from routing-policy probabilities           | Greedy: argmin estimated processing time (heuristic) | —                    |
+| DM-DRL  | Sample from routing-policy probabilities           | `PPOResourceOnlyAgent`                              | resource-only ckpt   |
+| DRL-DRL | `PPOAgent` activity head                           | `PPOAgent` resource head                            | full ckpt            |
+
+DM-GR is the domain-knowledge heuristic baseline: stochastic activity sampling (avoids loops on argmax-collapse) paired with a `GreedyProcessingTimeResourceSelector` that estimates expected duration by averaging N draws of the existing `processing_time_policy.get_activity_duration(activity, resource)` interface (no API change to the policy), and picks the resource with the lowest estimate. Empirically this collapses cycle times into a tight band positioned between T50 and T95 — best T95 compliance, worst T50 — because the heuristic ignores congestion and overloads the historically-fast resources.
+
+The "decision model" (DM) for DM-RR / DM-DRL is the empirical `ProbabilisticRoutingPolicy` (1st-order Markov), not an LSTM — that simplification was deliberate to avoid bringing in a separate next-activity predictor.
+
+### Training scripts
+
+- **`src/train.py::train_full_agent(...)`** — full DRL-DRL PPO training. CLI `main()` is a thin wrapper around the function. Uses `SLARewardFunction()` when `alpha == 0`, `RegularizedSLARewardFunction(alpha=...)` otherwise.
+- **`src/train_resource_only.py::train_resource_only_agent(...)`** — analog for `PPOResourceOnlyAgent`. Activity at each decision is sampled from `EmpiricalDMActivitySelector` so the agent only learns to optimize resource allocation under a fixed control-flow distribution. Always uses plain `SLARewardFunction()` (no regularization).
+- **`src/train_all.py`** — orchestrator. Imports both training functions and calls them in-process (no subprocess) for every `(log, variant)` combo in `TRAINING_REGISTRY`. Prints `[N/total]` progress with ETA between runs. Run names follow `{LogName}_DDPS_p{pctile}_{episodes}_{max_cases}_tp{top_p*100}_tk{top_k}_pe{p_min_end*100}_a{alpha*100}_{variant}`. The matrix runner's `LOG_REGISTRY` references checkpoints under those exact names.
 
 ## Known issues / stubs
 
 - `ResourceAllocationPolicy` and `StoppingPolicy` are planned but not fully implemented.
 - The engine guards against infinite loops via `max_cases`, but zero-duration activities can still cause issues.
 - `RegularizedSLARewardFunction` contains debug print statements (line 136 of `reward.py`) that should be removed in production use.
+- The "decision model" used by DM-RR / DM-DRL is the empirical 1st-order Markov routing policy, not an LSTM. Replacing it with a learned next-activity model would be a `RoutingPolicy` subclass plugged into the same `EmpiricalDMActivitySelector` slot.

@@ -13,7 +13,7 @@ import argparse
 import glob
 import os
 
-from metrics.evaluation import PolicyEvaluator
+from evaluation.metrics import PolicyEvaluator
 
 
 ORIGINAL_LOG_NAMES = {

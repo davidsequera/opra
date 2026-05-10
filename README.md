@@ -183,7 +183,7 @@ Key arguments:
 
 Output structure:
 ```
-data/training_runs/experiment_01/
+data/training_models/experiment_01/
 ├── checkpoints/
 │   ├── checkpoint_ep0010.pt
 │   ├── checkpoint_ep0020.pt
@@ -198,7 +198,7 @@ data/training_runs/experiment_01/
 To evaluate a trained checkpoint over K independent runs and compute the full metrics suite (performance + similarity):
 ```bash
 python src/evaluate_policy.py \
-    --checkpoint data/training_runs/experiment_01/checkpoints/best_model.pt \
+    --checkpoint data/training_models/experiment_01/checkpoints/best_model.pt \
     --log_path data/logs/LoanApp/LoanApp.csv \
     --K 10 \
     --policy_name DRL-AR \

@@ -22,17 +22,17 @@ from contextlib import nullcontext
 from initializer.implementations.DDPSInitializer import DDPSInitializer
 from environment.simulator.core.setup import SimulationSetup
 from environment.core.env import BusinessProcessEnvironment
-from environment.core.reward import RegularizedSLARewardFunction
+from environment.core.reward import RegularizedSLARewardFunction, SLARewardFunction
 from environment.core.mask import NucleusMaskFunction
 from environment.simulator.core.log_names import LogColumnNames
 from environment.simulator.core.engine import SimulatorEngine
-from agent.agent import PPOAgent
+from agent.JointAgent.agent import PPOAgent
 
-from metrics.training.functions import (
+from evaluation.training.functions import (
     compute_episode_metrics,
 )
 
-from metrics.training.training_metrics_tracker import (
+from evaluation.training.training_metrics_tracker import (
     TrainingMetricsTracker,
     UpdateMetrics,
 )
@@ -159,134 +159,116 @@ def run_single_episode(
     return total_reward, num_steps, cycle_times
 
 
-def main():
-    args = parse_args()
+def train_full_agent(
+    *,
+    log_path: str,
+    episodes: int,
+    max_cases: int,
+    percentile: int = 75,
+    top_k: int = 3,
+    top_p: float = 0.9,
+    p_min_end: float = 0.1,
+    alpha: float = 0.0,
+    lr: float = 3e-4,
+    gamma: float = 0.99,
+    seed: int = 42,
+    save_every: int = 10,
+    update_every: int = 1,
+    run_name: str | None = None,
+    resume: str | None = None,
+) -> str:
+    """Train the full DRL-DRL PPO agent. Returns the run directory."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
-    # --- Reproducibility ---
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    if run_name is None:
+        run_name = f"run_{time.strftime('%Y%m%d_%H%M%S')}"
+    run_dir = os.path.join("data/training_models", run_name)
 
-    # --- Run directory ---
-    if args.run_name is None:
-        args.run_name = f"run_{time.strftime('%Y%m%d_%H%M%S')}"
-    run_dir = os.path.join("data/training_runs", args.run_name)
-
-    # --- Load data ---
-    log = pd.read_csv(args.log_path)
+    log = pd.read_csv(log_path)
     log_names = LogColumnNames(
-        case_id="case_id",
-        activity="activity",
-        resource="resource",
-        start_timestamp="start_time",
-        end_timestamp="end_time",
+        case_id="case_id", activity="activity", resource="resource",
+        start_timestamp="start_time", end_timestamp="end_time",
     )
 
-    # --- Build simulation setup ---
     initializer = DDPSInitializer()
     start_timestamp = log[log_names.start_timestamp].min()
-    time_unit = "seconds"
-    setup: SimulationSetup = initializer.build(log, log_names, start_timestamp, time_unit)
+    setup: SimulationSetup = initializer.build(log, log_names, start_timestamp, "seconds")
     simulator = SimulatorEngine(setup)
 
-    # --- SLA threshold ---
-    original_cycle_times = []
-    for case_id, group in log.groupby(log_names.case_id):
+    cycle_times_orig = []
+    for _, group in log.groupby(log_names.case_id):
         st = pd.to_datetime(group[log_names.start_timestamp], format="mixed").min()
         et = pd.to_datetime(group[log_names.end_timestamp], format="mixed").max()
-        original_cycle_times.append((et - st).total_seconds())
-    sla_threshold = np.percentile(original_cycle_times, args.percentile)
-    baseline_cr = np.mean(np.array(original_cycle_times) < sla_threshold)
-    print(f"SLA Threshold (p{args.percentile}): {sla_threshold:.2f}s")
+        cycle_times_orig.append((et - st).total_seconds())
+    sla_threshold = float(np.percentile(cycle_times_orig, percentile))
+    baseline_cr = float(np.mean(np.array(cycle_times_orig) < sla_threshold))
+    print(f"SLA threshold (p{percentile}): {sla_threshold:.2f}s")
     print(f"Baseline CR (original log): {baseline_cr:.2%}")
-    print(f"Parameters: episodes={args.episodes}, max_cases={args.max_cases}, lr={args.lr}, gamma={args.gamma}, top_p={args.top_p}, top_k={args.top_k}, p_min_end={args.p_min_end}, alpha={args.alpha}")
-    # --- Environment ---
+    print(
+        f"Parameters: episodes={episodes}, max_cases={max_cases}, lr={lr}, gamma={gamma}, "
+        f"top_p={top_p}, top_k={top_k}, p_min_end={p_min_end}, alpha={alpha}"
+    )
+
+    reward_function = SLARewardFunction() if alpha == 0.0 else RegularizedSLARewardFunction(alpha=alpha)
     env = BusinessProcessEnvironment(
         simulator,
         sla_threshold=sla_threshold,
-        max_cases=args.max_cases,
-        activity_mask_function=NucleusMaskFunction(k=args.top_k, p=args.top_p, p_min_end=args.p_min_end),
-        reward_function=RegularizedSLARewardFunction(alpha=args.alpha),
+        max_cases=max_cases,
+        activity_mask_function=NucleusMaskFunction(k=top_k, p=top_p, p_min_end=p_min_end),
+        reward_function=reward_function,
     )
 
-    # --- Agent ---
     agent = PPOAgent(
         state_dim=env.observation_space.shape[0],
         num_activities=simulator.num_activities,
         num_resources=simulator.num_resources,
-        lr=args.lr,
+        lr=lr,
+        gamma=gamma,
     )
 
-    # --- Resume from checkpoint ---
     start_episode = 1
-    if args.resume is not None:
-        start_episode = load_checkpoint(agent, args.resume) + 1
+    if resume is not None:
+        start_episode = load_checkpoint(agent, resume) + 1
         print(f"  Resuming training from episode {start_episode}")
 
-    # --- Metrics tracker ---
     hyperparams = {
-        "log_path": args.log_path,
-        "episodes": args.episodes,
-        "max_cases": args.max_cases,
-        "sla_percentile": args.percentile,
-        "sla_threshold": sla_threshold,
-        "baseline_cr": baseline_cr,
-        "lr": args.lr,
-        "gamma": args.gamma,
-        "seed": args.seed,
-        "top_p": args.top_p,
-        "top_k": args.top_k,
-        "p_min_end": args.p_min_end,
-        "alpha": args.alpha,
+        "log_path": log_path, "agent_kind": "full",
+        "episodes": episodes, "max_cases": max_cases,
+        "sla_percentile": percentile, "sla_threshold": sla_threshold, "baseline_cr": baseline_cr,
+        "lr": lr, "gamma": gamma, "seed": seed,
+        "top_p": top_p, "top_k": top_k, "p_min_end": p_min_end, "alpha": alpha,
     }
     tracker = TrainingMetricsTracker(log_dir=run_dir, hyperparams=hyperparams)
 
-    # ================================================================ #
-    #  Training Loop
-    # ================================================================ #
-    print(f"\nStarting training: {args.episodes} episodes, {args.max_cases} cases each")
+    print(f"\nStarting training: {episodes} episodes, {max_cases} cases each")
     print(f"Run directory: {run_dir}\n")
 
     best_cr = -1.0
     update_count = 0
 
-    for ep in range(start_episode, args.episodes + 1):
+    for ep in range(start_episode, episodes + 1):
         ep_start = time.time()
-
-        # --- Run episode ---
         total_reward, num_steps, cycle_times = run_single_episode(
-            env=env,
-            simulator=simulator,
-            agent=agent,
-            deterministic=False,
+            env=env, simulator=simulator, agent=agent, deterministic=False,
         )
-
         ep_duration = time.time() - ep_start
 
-        # --- Compute and log episode metrics ---
         ep_metrics = compute_episode_metrics(
-            episode=ep,
-            total_reward=total_reward,
-            num_steps=num_steps,
-            cycle_times=cycle_times,
-            sla_threshold=sla_threshold,
+            episode=ep, total_reward=total_reward, num_steps=num_steps,
+            cycle_times=cycle_times, sla_threshold=sla_threshold,
             episode_duration_sec=ep_duration,
         )
         tracker.log_episode(ep_metrics)
         tracker.print_episode_summary(ep_metrics, baseline_cr=baseline_cr)
 
-        # --- PPO Update ---
-        if ep % args.update_every == 0:
+        if ep % update_every == 0:
             update_count += 1
-            # NOTE: agent.update() should return loss info.
-            # If your current PPOAgent.update() doesn't return losses,
-            # you'll need to modify it (see the adapter below).
             loss_info = agent.update()
-
             if loss_info is not None:
-                upd_metrics = UpdateMetrics(
-                    update=update_count,
-                    episode=ep,
+                upd = UpdateMetrics(
+                    update=update_count, episode=ep,
                     policy_loss=loss_info.get("policy_loss", 0.0),
                     value_loss=loss_info.get("value_loss", 0.0),
                     entropy=loss_info.get("entropy", 0.0),
@@ -294,44 +276,58 @@ def main():
                     approx_kl=loss_info.get("approx_kl"),
                     clip_fraction=loss_info.get("clip_fraction"),
                 )
-                tracker.log_update(upd_metrics)
-                tracker.print_update_summary(upd_metrics)
+                tracker.log_update(upd)
+                tracker.print_update_summary(upd)
 
-        # --- Save checkpoint ---
         is_best = ep_metrics.sla_compliance_rate > best_cr
         if is_best:
             best_cr = ep_metrics.sla_compliance_rate
 
-        if ep % args.save_every == 0 or is_best:
-            ckpt_path = os.path.join(run_dir, "checkpoints", f"checkpoint_ep{ep:04d}.pt")
-            save_checkpoint(agent, ckpt_path, ep, {
+        if ep % save_every == 0 or is_best:
+            summary = {
                 "sla_compliance_rate": ep_metrics.sla_compliance_rate,
                 "avg_cycle_time": ep_metrics.avg_cycle_time,
                 "total_reward": ep_metrics.total_reward,
-            })
-
+            }
+            ckpt = os.path.join(run_dir, "checkpoints", f"checkpoint_ep{ep:04d}.pt")
+            save_checkpoint(agent, ckpt, ep, summary)
             if is_best:
-                best_path = os.path.join(run_dir, "checkpoints", "best_model.pt")
-                save_checkpoint(agent, best_path, ep, {
-                    "sla_compliance_rate": ep_metrics.sla_compliance_rate,
-                    "avg_cycle_time": ep_metrics.avg_cycle_time,
-                    "total_reward": ep_metrics.total_reward,
-                })
+                save_checkpoint(agent, os.path.join(run_dir, "checkpoints", "best_model.pt"), ep, summary)
 
-        # --- Periodic save of metrics ---
-        if ep % args.save_every == 0:
+        if ep % save_every == 0:
             tracker.save()
 
-    # --- Final save ---
     tracker.save()
-    final_path = os.path.join(run_dir, "checkpoints", "final_model.pt")
-    save_checkpoint(agent, final_path, args.episodes, {
-        "sla_compliance_rate": tracker.episode_history[-1].sla_compliance_rate,
-    })
-
-    print(f"\nTraining complete.")
-    print(f"Best CR: {best_cr:.2%} at episode {tracker._best_episode}")
+    save_checkpoint(
+        agent,
+        os.path.join(run_dir, "checkpoints", "final_model.pt"),
+        episodes,
+        {"sla_compliance_rate": tracker.episode_history[-1].sla_compliance_rate},
+    )
+    print(f"\nTraining complete. Best CR: {best_cr:.2%} at episode {tracker._best_episode}")
     print(f"Metrics saved to: {run_dir}")
+    return run_dir
+
+
+def main():
+    args = parse_args()
+    train_full_agent(
+        log_path=args.log_path,
+        episodes=args.episodes,
+        max_cases=args.max_cases,
+        percentile=args.percentile,
+        top_k=args.top_k,
+        top_p=args.top_p,
+        p_min_end=args.p_min_end,
+        alpha=args.alpha,
+        lr=args.lr,
+        gamma=args.gamma,
+        seed=args.seed,
+        save_every=args.save_every,
+        update_every=args.update_every,
+        run_name=args.run_name,
+        resume=args.resume,
+    )
 
 
 if __name__ == "__main__":

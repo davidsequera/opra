@@ -133,7 +133,7 @@ class RegularizedSLARewardFunction(SLARewardFunction):
         base = super().compute(ctx)
         if base > 0:
             multiplier = self.alpha * (ctx.chosen_activity_prob - 1.0) + 1.0
-            print(f"{base:.4f}", f"{multiplier:.4f}", f"{(base*multiplier):.4f}")
+            #print(f"{base:.4f}", f"{multiplier:.4f}", f"{(base*multiplier):.4f}")
             return base * multiplier
         return base
 
