@@ -1,8 +1,8 @@
-# OPRA: Optimizing Process Resource Allocation with RL and Simulation
+# OPRA: Optimal Predictor of Resources and Activities
 
 ## Overview
 
-OPRA (Optimizing Process Resource Allocation) is a hybrid simulation-optimization framework designed to improve business processes. At its core, it implements a **plug-and-play discrete-event process simulator** built on top of **SimPy**, driven primarily by **event logs**. It combines a data-driven Discrete Event Simulator (DDPS) with cutting-edge Machine Learning (ML) and Reinforcement Learning (RL) techniques to find optimal resource allocation policies.
+OPRA (Optimal Predictor of Resources and Activities) is a hybrid simulation-optimization framework designed to improve business processes. At its core, it implements a **plug-and-play discrete-event process simulator** built on top of **SimPy**, driven primarily by **event logs**. It combines a data-driven Discrete Event Simulator (DDPS) with cutting-edge Machine Learning (ML) and Reinforcement Learning (RL) techniques to find optimal resource allocation policies.
 
 The core idea is to:
 - Take an event log

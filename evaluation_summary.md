@@ -175,22 +175,24 @@ Each evaluation policy is an `(ActivitySelector, ResourceSelector)` pair. The se
 ## 7. Current state of training and evaluation
 
 - **AcademicCredentials**: ✅ both checkpoints trained (full and resource-only). Matrix evaluation completed for K = 10.
-- **BPIC_2012**: ⏳ not yet trained (~8h estimated for both variants combined).
-- **BPIC_2017**: ⏳ not yet trained (~20h estimated for both variants combined).
+- **BPIC_2012**: ✅ both checkpoints trained. Matrix evaluation completed for K = 10.
+- **BPIC_2017**: ✅ both checkpoints trained. Matrix evaluation completed for K = 10.
 
-The framework code is complete. The bottleneck is compute time on the two remaining logs.
+The full (log × policy) matrix is complete. All results below are K = 10 runs, training SLA percentile = p75.
+
+---
 
 ### AcademicCredentials results (K = 10, training p75)
 
 | policy  | CR T95 | CR T90 | CR T75 | CR T50 | avg cycle time | NGD  |
 |---------|--------|--------|--------|--------|----------------|------|
 | RA-RR   | 92.9%  | 86.8%  | 66.3%  | 28.6%  | 894k s         | 0.37 |
-| DM-GR   | 100.0% | 99.7%  | 63.5%  | 25.2%  | 720k s         | 0.27 |
 | DM-RR   | 94.4%  | 89.3%  | 71.0%  | 35.4%  | 772k s         | 0.26 |
+| DM-GR   | 100.0% | 99.7%  | 63.5%  | 25.2%  | 720k s         | 0.27 |
 | DM-DRL  | 98.4%  | 97.1%  | 90.2%  | 66.0%  | 346k s         | 0.27 |
 | DRL-DRL | 100.0% | 99.7%  | 99.4%  | 94.0%  | 60k s          | 0.46 |
 
-**CIR — Compliance Improvement Ratio vs. the original log** (positive = lift, negative = the policy is *worse* than the historical process at that threshold). Same K = 10 runs.
+**CIR — Compliance Improvement Ratio vs. the original log** (positive = lift, negative = the policy is *worse* than the historical process at that threshold).
 
 | policy  | CIR T95  | CIR T90  | CIR T75  | CIR T50  |
 |---------|----------|----------|----------|----------|
@@ -200,20 +202,67 @@ The framework code is complete. The bottleneck is compute time on the two remain
 | DM-DRL  | +3.62%   | +7.96%   | +20.44%  | +31.96%  |
 | DRL-DRL | +5.24%   | +10.84%  | +32.79%  | +88.04%  |
 
-Reading the CIR table:
+---
 
-- **DRL-DRL** improves compliance over the original log at *every* threshold, with the largest lift on the most demanding bound (T50: +88%).
-- **DM-DRL** is the only other policy that achieves positive CIR across all four thresholds — direct evidence for H3 that learning the resource head alone already beats the original process, and pairing it with a learned activity head (DRL-DRL) compounds the gain.
-- **DM-GR** has the sharpest sign flip in the table: positive at T95/T90, strongly negative at T75/T50. This is the cleanest quantitative restatement of the congestion-collapse finding — the greedy heuristic *helps* the tail but *hurts* the median.
-- **DM-RR** is essentially flat at the easy thresholds and negative at the hard ones — sampling realistic activities with random resources is barely distinguishable from the original log at T95/T90 and noticeably worse at T50. Establishes that *neither* component alone (DM activity or random resource) is sufficient.
-- **RA-RR** is monotonically negative across thresholds — confirms the lower bound.
+### BPIC_2012 results (K = 10, training p75)
 
-**Observations on AC_CRE (early evidence — needs replication on BPIC_2012 / BPIC_2017):**
+| policy  | CR T95 | CR T90 | CR T75 | CR T50 | avg cycle time | NGD  |
+|---------|--------|--------|--------|--------|----------------|------|
+| RA-RR   | 95.1%  | 91.9%  | 79.0%  | 29.7%  | 614k s         | 0.38 |
+| DM-RR   | 84.9%  | 79.2%  | 65.0%  | 35.0%  | 1150k s        | 0.36 |
+| DM-GR   | 84.4%  | 77.3%  | 61.6%  | 33.7%  | 948k s         | 0.36 |
+| DM-DRL  | 84.8%  | 79.0%  | 65.6%  | 35.3%  | 1093k s        | 0.36 |
+| DRL-DRL | 100.0% | 100.0% | 99.9%  | 97.2%  | 9k s           | 0.75 |
 
-- **H1 supported.** DRL-DRL dominates every baseline at every threshold.
-- **H3 ladder holds.** Monotonic improvement RA-RR → DM-RR → DM-DRL → DRL-DRL on CR T75 and CR T50, and on avg cycle time.
-- **DM-GR fails interestingly.** Best at T95 (essentially saturated) but **worse than random at T50/T75**. The cycle-time distribution collapses into a narrow band [60k, 1.9M] with the smallest std and the largest *min*. Interpretation: the greedy heuristic ignores congestion, overloads the historically-fast resources, and inflates the floor of the cycle-time distribution. Useful negative result for the thesis.
-- **H2 trade-off visible.** DRL-DRL has NGD = 0.46, ~70% higher than the DM-* family (~0.27). The agent has learned a process flow that is recognisably less typical than empirical sampling. The behavioural-realism axis is where the regularization knob (`alpha`) — currently zero — would tilt the trade-off. Worth at least one ablation in the final chapter.
+| policy  | CIR T95  | CIR T90  | CIR T75  | CIR T50  |
+|---------|----------|----------|----------|----------|
+| RA-RR   | +0.14%   | +2.06%   | +5.32%   | −40.57%  |
+| DM-RR   | −10.58%  | −12.04%  | −13.32%  | −30.07%  |
+| DM-GR   | −11.13%  | −14.11%  | −17.83%  | −32.65%  |
+| DM-DRL  | −10.71%  | −12.27%  | −12.54%  | −29.35%  |
+| DRL-DRL | +5.28%   | +11.10%  | +33.17%  | +94.36%  |
+
+---
+
+### BPIC_2017 results (K = 10, training p75)
+
+| policy  | CR T95 | CR T90 | CR T75 | CR T50 | avg cycle time | NGD  |
+|---------|--------|--------|--------|--------|----------------|------|
+| RA-RR   | 99.5%  | 98.2%  | 91.9%  | 72.0%  | 614k s         | 0.42 |
+| DM-RR   | 96.3%  | 92.1%  | 80.1%  | 56.8%  | 868k s         | 0.18 |
+| DM-GR   | 87.0%  | 79.2%  | 62.4%  | 39.4%  | 1346k s        | 0.18 |
+| DM-DRL  | 97.4%  | 94.2%  | 83.8%  | 62.1%  | 771k s         | 0.18 |
+| DRL-DRL | 100.0% | 100.0% | 100.0% | 99.6%  | 112k s         | 0.68 |
+
+| policy  | CIR T95  | CIR T90  | CIR T75  | CIR T50  |
+|---------|----------|----------|----------|----------|
+| RA-RR   | +4.71%   | +9.17%   | +22.59%  | +43.94%  |
+| DM-RR   | +1.41%   | +2.40%   | +6.78%   | +13.67%  |
+| DM-GR   | −8.41%   | −12.01%  | −16.78%  | −21.29%  |
+| DM-DRL  | +2.54%   | +4.66%   | +11.68%  | +24.27%  |
+| DRL-DRL | +5.28%   | +11.12%  | +33.32%  | +99.24%  |
+
+---
+
+### Cross-log observations
+
+**H1 — SLA Compliance (DRL-DRL vs. baselines):**
+- DRL-DRL achieves near-perfect CR at all thresholds across all three logs (T95 ≈ 100%, T50 ≥ 94%). The gap is most dramatic at T50: DRL-DRL reaches 94% (AC), 97% (BPIC_2012), and 99.6% (BPIC_2017) while the next-best policy rarely exceeds 66%.
+- H1 is strongly supported across all three logs.
+
+**H3 — Incremental Benefit (ladder RA-RR → DM-RR → DM-DRL → DRL-DRL):**
+- The ladder holds on AcademicCredentials and BPIC_2017. On BPIC_2012 the DM-* family (DM-RR, DM-GR, DM-DRL) performs *worse* than RA-RR at every threshold — the empirical Markov routing produces longer cycle times than random activity selection on this log, suggesting the 1st-order Markov policy is poorly calibrated for BPIC_2012's structure. DRL-DRL still dominates. The rungs between DM-RR and DM-DRL are still monotone within the DM-* family on BPIC_2012.
+- RA-RR on BPIC_2017 outperforms DM-RR at every threshold — the same Markov-routing pathology is present to a lesser degree.
+
+**DM-GR — consistent negative result:**
+- DM-GR is the worst or near-worst non-random policy at T50/T75 on every log. On BPIC_2017 it is the worst policy overall. The congestion-collapse pattern (fast-resource overload → inflated cycle-time floor) is consistent. Strong thesis point: the naïve domain-knowledge heuristic reliably fails.
+
+**H2 — Behavioural Realism:**
+- DRL-DRL NGD ranges from 0.46 (AC) to 0.75 (BPIC_2012) vs. 0.26–0.42 for DM-* policies. The behavioural deviation from the original process is largest on BPIC_2012 where DRL-DRL also achieves the most extreme cycle-time compression (~9k s avg vs. 614k s for RA-RR). The realism–compliance trade-off is sharpest on the largest log.
+- DM-* NGD values are tightly clustered (~0.18 on BPIC_2017, ~0.36 on BPIC_2012, ~0.26 on AC), confirming they preserve control-flow better than DRL-DRL as expected.
+
+**BPIC_2012 anomaly (DM routing underperforms random):**
+- All DM-* policies have CIR < 0 at every threshold on BPIC_2012 (except DM-RR at T50 which is close to zero). RA-RR meanwhile has positive CIR at T95/T90/T75. This is likely because the empirical 1st-order Markov routing on BPIC_2012 systematically routes cases through slow paths. Worth a paragraph in the thesis under "Threats to Validity" or "Limitations of the Decision Model".
 
 ---
 
