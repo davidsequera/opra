@@ -82,111 +82,137 @@ This cycle of `state -> action -> reward -> new state` continues, allowing the a
 
 ```text
 opra/
-├── .git/
-├── .gitignore
 ├── CLAUDE.md
 ├── LICENSE
 ├── README.md
 ├── requirements.txt
 ├── data/
-│   ├── logs/
-│   └── simulated_logs/
+│   ├── logs/                        # Input event logs (CSV)
+│   ├── training_models/             # Checkpoints and training metrics
+│   └── evaluation_results/          # Evaluation CSVs and aggregated results
 ├── docs/
 │   ├── architecture.dsl
 │   ├── environment.md
 │   └── Thesis_Proposal.pdf
 └── src/
     ├── agent/
-    │   └── agent.py
+    │   ├── JointAgent/              # Full DRL-DRL PPO agent
+    │   └── ResourcesOnlyAgent/      # Resource-only DM-DRL agent
     ├── environment/
     │   ├── core/
-    │   │   ├── env.py
-    │   │   ├── mask.py
-    │   │   └── reward.py
+    │   │   ├── env.py               # Gymnasium wrapper (BusinessProcessEnvironment)
+    │   │   ├── mask.py              # Nucleus / top-k masking
+    │   │   └── reward.py            # SLA / Regularized / Binary reward functions
     │   ├── simulator/
-    │   │   ├── adapters/
-    │   │   ├── core/
-    │   │   ├── implementations/
-    │   │   └── policies/
-    │   └── entities/
-    │       ├── Activity.py
-    │       ├── Case.py
-    │       ├── Events.py
-    │       └── Resource.py
+    │   │   ├── core/                # SimulatorEngine, SimulationSetup
+    │   │   ├── implementations/     # Empirical, parametric, distribution impls
+    │   │   └── policies/            # Abstract policy interfaces (hexagonal boundary)
+    │   └── entities/                # Activity, Case, Resource, Events
+    ├── evaluation/
+    │   ├── selectors/               # ActivitySelector / ResourceSelector impls + factory
+    │   ├── metrics/                 # Performance + similarity metric functions
+    │   ├── training/                # TrainingMetricsTracker, episode/update metrics
+    │   ├── runner.py                # run_episode — single episode loop
+    │   ├── experiment.py            # evaluate_policy_on_log — K runs for one (log, policy)
+    │   └── csv_export.py            # runs_long / runs_wide / aggregated CSV writers
     ├── initializer/
     │   ├── implementations/
     │   │   ├── DDPSInitializer.py
     │   │   └── ParametricInitializer.py
     │   └── Initializer.py
-    ├── metrics/
-    │   ├── __init__.py
-    │   ├── training_metrics.py
-    │   └── evaluation_metrics.py
-    ├── evaluate.py
-    ├── evaluate_policy.py
-    ├── main.py
-    ├── simulate.py
-    └── train.py
+    ├── simulate.py                  # Basic DDPS simulation
+    ├── train.py                     # Train full DRL-DRL agent
+    ├── train_resource_only.py       # Train resource-only DM-DRL agent
+    ├── train_all.py                 # Orchestrator: trains all (log × variant) combos
+    ├── run_single_evaluation.py     # Evaluate one (log, policy) combo
+    └── run_matrix_evaluation.py     # Evaluate full (log × policy) matrix
 ```
 
 ## Getting Started
 
 ### Prerequisites
-*   Python 3.8+
+
+- Python 3.11 (recommended via conda)
+- PyTorch (CPU or CUDA — installed separately, see below)
 
 ### Installation
-1.  **Clone the repository:**
-    ```bash
-    git clone  https://github.com/AdaptiveBProcess/Optimal-Predictor-of-Resources-and-Activities.git
-    cd opra
-    ```
-2.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
 
-### Running Simulations
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/AdaptiveBProcess/Optimal-Predictor-of-Resources-and-Activities.git
+   cd opra
+   ```
 
-#### 1. Basic Discrete-Event Simulation
-To run a basic DDPS and generate a simulated event log:
+2. **Create and activate the environment:**
+   ```bash
+   conda create -n opra_env python=3.11.14
+   conda activate opra_env
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Install PyTorch** (not in `requirements.txt`):
+   ```bash
+   # CPU
+   pip install torch torchvision
+   # CUDA 12.6
+   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+   ```
+
+> All scripts must be run from the **project root**, not from `src/`, as they use relative paths like `data/logs/...`.
+
+---
+
+## Running
+
+### 1. Basic Discrete-Event Simulation
+
+Runs a DDPS and writes a simulated event log to `data/simulated_logs/`:
+
 ```bash
 python src/simulate.py
 ```
-This will output a simulated event log to `data/simulated_logs/PurchasingExample/PurchasingExample.csv`.
 
-#### 2. Reinforcement Learning Experiment
-To run a single-episode RL simulation (quick test):
-```bash
-python src/main.py
-```
+### 2. Train the Full DRL-DRL Agent
 
-#### 3. Training a Policy
-To train a PPO agent over multiple episodes with metric tracking and checkpointing:
+Trains a joint `(activity, resource)` PPO agent:
+
 ```bash
 python src/train.py \
-    --log_path data/logs/LoanApp/LoanApp.csv \
-    --episodes 200 \
-    --max_cases 50 \
-    --percentile 90 \
-    --lr 3e-4 \
-    --save_every 10 \
-    --run_name experiment_01
+    --log_path data/logs/AcademicCredentials/AcademicCredentials_train.csv \
+    --episodes 300 \
+    --max_cases 400 \
+    --percentile 75 \
+    --top_k 2 \
+    --top_p 0.9 \
+    --p_min_end 0.3 \
+    --alpha 0.0 \
+    --run_name AcademicCredentials_run01
 ```
-
 
 Key arguments:
-- `--episodes`: Number of training episodes (default: 100)
-- `--max_cases`: Cases simulated per episode (default: 20)
-- `--percentile`: SLA threshold percentile (default: 95)
-- `--top_p`: Nucleus filtering threshold for activity masking (default: 0.9)
-- `--update_every`: PPO update frequency in episodes (default: 1)
 
-Output structure:
+| Argument | Default | Description |
+|---|---|---|
+| `--log_path` | required | Path to the training event log CSV |
+| `--episodes` | 300 | Number of training episodes |
+| `--max_cases` | log size | Cases simulated per episode |
+| `--percentile` | 75 | SLA threshold percentile (T75, T90, etc.) |
+| `--top_k` | 2 | Max activities kept by nucleus filter |
+| `--top_p` | 0.9 | Cumulative probability threshold for nucleus filter |
+| `--p_min_end` | 0.3 | Minimum probability to treat an activity as a valid end |
+| `--alpha` | 0.0 | Regularization weight (0 = plain SLA reward) |
+| `--run_name` | auto | Identifier for the run; determines checkpoint folder |
+
+Checkpoints and metrics land in:
+
 ```
-data/training_models/experiment_01/
+data/training_models/<run_name>/
 ├── checkpoints/
 │   ├── checkpoint_ep0010.pt
-│   ├── checkpoint_ep0020.pt
 │   ├── best_model.pt
 │   └── final_model.pt
 ├── episode_metrics.csv
@@ -194,19 +220,70 @@ data/training_models/experiment_01/
 └── summary.json
 ```
 
-#### 4. Evaluating a Trained Policy
-To evaluate a trained checkpoint over K independent runs and compute the full metrics suite (performance + similarity):
+### 3. Train the Resource-Only DM-DRL Agent
+
+Trains a resource-only PPO agent where the activity is sampled from the empirical routing policy (same DM used at evaluation):
+
 ```bash
-python src/evaluate_policy.py \
-    --checkpoint data/training_models/experiment_01/checkpoints/best_model.pt \
-    --log_path data/logs/LoanApp/LoanApp.csv \
-    --K 10 \
-    --policy_name DRL-AR \
-    --log_name LoanApp
+python src/train_resource_only.py \
+    --log_path data/logs/AcademicCredentials/AcademicCredentials_train.csv \
+    --episodes 300 \
+    --max_cases 400 \
+    --percentile 75 \
+    --top_k 2 \
+    --top_p 0.9 \
+    --p_min_end 0.3 \
+    --run_name AcademicCredentials_run01_resource_only
 ```
 
-This runs K greedy (deterministic) simulations, exports each as a CSV with absolute timestamps, and computes:
-- **Performance**: Compliance rates at T95/T90/T75/T50, compliance improvement ratios, cycle time statistics, resource utilization CV
-- **Similarity** (requires `log-distance-measures`): NGD, AED, CED, RED, CWD, CAR, CTD
+Accepts the same arguments as `train.py` except `--alpha` (always uses plain SLA reward).
 
-Results are aggregated as mean ± 95% CI and saved to `data/evaluation_results/`.
+### 4. Train All Registered Logs
+
+Runs both variants (DRL-DRL and DM-DRL) for every log registered in `TRAINING_REGISTRY` inside `train_all.py`, in-process:
+
+```bash
+python src/train_all.py
+```
+
+Prints `[N/total]` progress with ETA between runs. Skips combinations whose checkpoints already exist.
+
+### 5. Evaluate a Single (Log, Policy) Combination
+
+Runs K simulations for one log + policy pair and exports metrics:
+
+```bash
+python src/run_single_evaluation.py
+```
+
+Edit the configuration at the top of the script (log path, policy name, checkpoint, K) before running.
+
+### 6. Evaluate the Full (Log × Policy) Matrix
+
+Runs all five evaluation policies across all registered logs and writes comparison CSVs:
+
+```bash
+python src/run_matrix_evaluation.py
+```
+
+Add `--resume` to re-derive metrics from previously-exported simulated logs without re-simulating. Combinations whose checkpoints don't exist are skipped and reported at the end.
+
+**Output** (under `data/evaluation_results/`):
+
+| File | Shape | Description |
+|---|---|---|
+| `runs_long.csv` | `log, policy, run_id, metric, value` | Tidy format for plotting |
+| `runs_wide.csv` | one row per `(log, policy, run_id)` | One column per metric |
+| `aggregated.csv` | one row per `(log, policy)` | `<metric>_mean` + `<metric>_ci95` — the paper table |
+
+Per-policy `results.json` files are also written under `data/evaluation_results/<log>/<policy>/`.
+
+### Evaluation Policies
+
+| Name | Activity | Resource |
+|---|---|---|
+| RA-RR | Random uniform | Random |
+| DM-RR | Empirical routing (Markov) | Random |
+| DM-GR | Empirical routing (Markov) | Greedy min processing time |
+| DM-DRL | Empirical routing (Markov) | `PPOResourceOnlyAgent` |
+| DRL-DRL | `PPOAgent` activity head | `PPOAgent` resource head |

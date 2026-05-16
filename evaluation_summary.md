@@ -6,7 +6,7 @@ Self-contained brief for handing to a fresh Claude conversation that will help w
 
 ## 1. What OPRA is
 
-OPRA is a master's thesis project (Universidad de los Andes) that frames **business process optimization** as an MDP and solves it with **PPO** on top of a **SimPy-based Discrete Event Simulator**. The novelty vs. prior work: the agent jointly decides **both the next activity *and* the resource that will execute it** at every decision point. Prior work fixes control-flow and only optimizes resource allocation.
+OPRA is a master's thesis project that frames **business process optimization** as an MDP and solves it with **PPO** on top of a **SimPy-based Discrete Event Simulator**. The novelty vs. prior work: the agent jointly decides **both the next activity *and* the resource that will execute it** at every decision point. Prior work fixes control-flow and only optimizes resource allocation.
 
 - **State** `s ∈ ℝ^d`, `d = 3|R| + 2|A| + 5`: per-resource utilization / assignment / queue pressure, per-activity pending demand, case-specific features (branching probs, last activity, trace length, SLA urgency), and temporal features (hour, day).
 - **Action**: joint `(activity, resource)` pair. Activity masks use top-k / top-p nucleus filtering over learned routing probabilities; resource masks enforce skill constraints. Both via `-1e9` logit fill.
