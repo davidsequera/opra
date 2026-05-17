@@ -189,7 +189,7 @@ python src/train.py \
     --top_k 2 \
     --top_p 0.9 \
     --p_min_end 0.3 \
-    --alpha 0.0 \
+    --beta 0.0 \
     --run_name AcademicCredentials_run01
 ```
 
@@ -204,7 +204,7 @@ Key arguments:
 | `--top_k` | 2 | Max activities kept by nucleus filter |
 | `--top_p` | 0.9 | Cumulative probability threshold for nucleus filter |
 | `--p_min_end` | 0.3 | Minimum probability to treat an activity as a valid end |
-| `--alpha` | 0.0 | Regularization weight (0 = plain SLA reward) |
+| `--beta` | 0.0 | Regularization weight (0 = plain SLA reward) |
 | `--run_name` | auto | Identifier for the run; determines checkpoint folder |
 
 Checkpoints and metrics land in:
@@ -236,7 +236,7 @@ python src/train_resource_only.py \
     --run_name AcademicCredentials_run01_resource_only
 ```
 
-Accepts the same arguments as `train.py` except `--alpha` (always uses plain SLA reward).
+Accepts the same arguments as `train.py` except `--beta` (always uses plain SLA reward).
 
 ### 4. Train All Registered Logs
 

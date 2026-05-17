@@ -10,7 +10,7 @@ OPRA is a master's thesis project that frames **business process optimization** 
 
 - **State** `s ∈ ℝ^d`, `d = 3|R| + 2|A| + 5`: per-resource utilization / assignment / queue pressure, per-activity pending demand, case-specific features (branching probs, last activity, trace length, SLA urgency), and temporal features (hour, day).
 - **Action**: joint `(activity, resource)` pair. Activity masks use top-k / top-p nucleus filtering over learned routing probabilities; resource masks enforce skill constraints. Both via `-1e9` logit fill.
-- **Reward**: SLA compliance — a case is a success if `cycle_time < T`, where `T` is a percentile of the original log's cycle-time distribution (training uses **p75** in all current runs). Implementation: `SLARewardFunction` (intermediate + terminal), with optional `RegularizedSLARewardFunction` that scales positive rewards by the empirical routing probability of the chosen activity (`alpha=0` disables; current runs use `alpha=0`).
+- **Reward**: SLA compliance — a case is a success if `cycle_time < T`, where `T` is a percentile of the original log's cycle-time distribution (training uses **p75** in all current runs). Implementation: `SLARewardFunction` (intermediate + terminal), with optional `RegularizedSLARewardFunction` that scales positive rewards by the empirical routing probability of the chosen activity (`beta=0` disables; current runs use `beta=0`).
 
 ---
 
@@ -58,12 +58,12 @@ Every policy is an `(ActivitySelector, ResourceSelector)` pair. Names use the co
 | BPIC_2012            | 3030          | 3000        | 2     | 0.9   | 0.3       |
 | BPIC_2017            | 7402          | 7400        | 3     | 0.9   | 0.1       |
 
-Training: 300 episodes per (log, variant), SLA training percentile = **75**, lr = 3e-4, gamma = 0.99, seed = 42, `alpha = 0` (no regularization).
+Training: 300 episodes per (log, variant), SLA training percentile = **75**, lr = 3e-4, gamma = 0.99, seed = 42, `beta = 0` (no regularization).
 
 Run-name format (used everywhere — checkpoint paths, eval matrix lookup):
 
 ```
-{LogName}_DDPS_p{percentile}_{episodes}_{max_cases}_tp{top_p*100}_tk{top_k}_pe{p_min_end*100}_a{alpha*100}_{variant}
+{LogName}_DDPS_p{percentile}_{episodes}_{max_cases}_tp{top_p*100}_tk{top_k}_pe{p_min_end*100}_a{beta*100}_{variant}
 ```
 
 Example: `AcademicCredentials_DDPS_p75_300_400_tp90_tk2_pe30_a0_full`.
@@ -272,10 +272,10 @@ The full (log × policy) matrix is complete. All results below are K = 10 runs, 
 2. **DM is empirical Markov, not LSTM.** Avoid implying a learned next-activity model is in scope.
 3. **DM-GR's value is the *negative* result.** Don't write it up as "another strong baseline". Frame it as: "a sensible domain-knowledge heuristic is shown to be insufficient — congestion-awareness matters."
 4. **Training SLA threshold = p75 for all logs.** Earlier drafts used T90/T80; we standardised on p75.
-5. **Reward is `SLARewardFunction` with `alpha = 0`** in the reported runs. The regularised variant exists but isn't currently active.
+5. **Reward is `SLARewardFunction` with `beta = 0`** in the reported runs. The regularised variant exists but isn't currently active.
 6. **Realism is reported per dimension** (control-flow / temporal / resource / congestion), not as a single aggregate score. Don't average the similarity metrics into one number.
 7. **K = 10 runs per (log, policy), aggregated as mean ± 95% CI (t-distribution).** Every metric in the paper table has a CI.
-8. **The matrix is `log × policy`**, not `log × policy × hyperparameter`. Hyperparameter ablations (e.g. `alpha`, `top_k`, training percentile) are *separate* studies and only AC_CRE has the full matrix today.
+8. **The matrix is `log × policy`**, not `log × policy × hyperparameter`. Hyperparameter ablations (e.g. `beta`, `top_k`, training percentile) are *separate* studies and only AC_CRE has the full matrix today.
 9. **The thesis novelty is the joint (activity, resource) action.** When discussing H3, emphasise that DM-DRL → DRL-DRL is the step where the action space expands; the earlier rungs of the ladder differ only in how the resource is chosen.
 
 ---

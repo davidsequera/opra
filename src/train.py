@@ -54,7 +54,7 @@ def parse_args():
     parser.add_argument("--top_p", type=float, default=0.9, help="Nucleus filtering for activity mask")
     parser.add_argument("--top_k", type=int, default=3, help="Top-k filtering for activity mask")
     parser.add_argument("--p_min_end", type=float, default=0.1, help="Minimum end probability for activity mask")
-    parser.add_argument("--alpha", type=float, default=0.0, help="Distributional regularization strength (0=off, 1=full)")
+    parser.add_argument("--beta", type=float, default=0.0, help="Distributional regularization strength (0=off, 1=full)")
     return parser.parse_args()
 
 
@@ -168,7 +168,7 @@ def train_full_agent(
     top_k: int = 3,
     top_p: float = 0.9,
     p_min_end: float = 0.1,
-    alpha: float = 0.0,
+    beta: float = 0.0,
     lr: float = 3e-4,
     gamma: float = 0.99,
     seed: int = 42,
@@ -208,10 +208,10 @@ def train_full_agent(
     print(f"Baseline CR (original log): {baseline_cr:.2%}")
     print(
         f"Parameters: episodes={episodes}, max_cases={max_cases}, lr={lr}, gamma={gamma}, "
-        f"top_p={top_p}, top_k={top_k}, p_min_end={p_min_end}, alpha={alpha}"
+        f"top_p={top_p}, top_k={top_k}, p_min_end={p_min_end}, beta={beta}"
     )
 
-    reward_function = SLARewardFunction() if alpha == 0.0 else RegularizedSLARewardFunction(alpha=alpha)
+    reward_function = SLARewardFunction() if beta == 0.0 else RegularizedSLARewardFunction(beta=beta)
     env = BusinessProcessEnvironment(
         simulator,
         sla_threshold=sla_threshold,
@@ -238,7 +238,7 @@ def train_full_agent(
         "episodes": episodes, "max_cases": max_cases,
         "sla_percentile": percentile, "sla_threshold": sla_threshold, "baseline_cr": baseline_cr,
         "lr": lr, "gamma": gamma, "seed": seed,
-        "top_p": top_p, "top_k": top_k, "p_min_end": p_min_end, "alpha": alpha,
+        "top_p": top_p, "top_k": top_k, "p_min_end": p_min_end, "beta": beta,
     }
     tracker = TrainingMetricsTracker(log_dir=run_dir, hyperparams=hyperparams)
 
@@ -319,7 +319,7 @@ def main():
         top_k=args.top_k,
         top_p=args.top_p,
         p_min_end=args.p_min_end,
-        alpha=args.alpha,
+        beta=args.beta,
         lr=args.lr,
         gamma=args.gamma,
         seed=args.seed,

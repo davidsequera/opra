@@ -3,9 +3,9 @@ Library-style orchestrator: trains both PPO agents (full DRL-DRL + resource-only
 DM-DRL) for every registered log, calling the training functions in-process.
 
 Run names follow the format:
-    {LogName}_DDPS_p{percentile}_{episodes}_{max_cases}_tp{top_p*100}_tk{top_k}_pe{p_min_end*100}_a{alpha*100}_{variant}
+    {LogName}_DDPS_p{percentile}_{episodes}_{max_cases}_tp{top_p*100}_tk{top_k}_pe{p_min_end*100}_b{beta*100}_{variant}
 
-Defaults: percentile=75, episodes=300, alpha=0 (no regularization).
+Defaults: percentile=75, episodes=300, beta=0 (no regularization).
 
 Usage (from the project root):
     python src/train_all.py
@@ -54,7 +54,7 @@ TRAINING_REGISTRY: dict[str, dict] = {
 VARIANTS = ("full", "resource_only")
 DEFAULT_PERCENTILE = 75
 DEFAULT_EPISODES = 300
-DEFAULT_ALPHA = 0.0
+DEFAULT_BETA = 0.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -63,7 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--variants", nargs="+", default=list(VARIANTS), choices=VARIANTS)
     parser.add_argument("--episodes", type=int, default=DEFAULT_EPISODES)
     parser.add_argument("--percentile", type=int, default=DEFAULT_PERCENTILE)
-    parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA, help="Regularization strength (full agent only).")
+    parser.add_argument("--beta", type=float, default=DEFAULT_BETA, help="Regularization strength (full agent only).")
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--save-every", type=int, default=10)
@@ -81,7 +81,7 @@ def build_run_name(log_name: str, log_cfg: dict, args: argparse.Namespace, varia
         f"_tp{int(round(log_cfg['top_p'] * 100))}"
         f"_tk{log_cfg['top_k']}"
         f"_pe{int(round(log_cfg['p_min_end'] * 100))}"
-        f"_a{int(round(args.alpha * 100))}"
+        f"_b{int(round(args.beta * 100))}"
         f"_{variant}"
     )
 
@@ -101,7 +101,7 @@ def _train_one(log_cfg: dict, variant: str, run_name: str, args: argparse.Namesp
             top_k=log_cfg["top_k"],
             top_p=log_cfg["top_p"],
             p_min_end=log_cfg["p_min_end"],
-            alpha=args.alpha,
+            beta=args.beta,
             lr=args.lr,
             seed=args.seed,
             save_every=args.save_every,
