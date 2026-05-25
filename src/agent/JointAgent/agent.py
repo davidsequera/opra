@@ -4,12 +4,16 @@ import torch.nn as nn
 from torch.distributions import Categorical
 
 class PPOAgent:
-    def __init__(self, state_dim, num_activities, num_resources, 
-                 lr=3e-4, gamma=0.99, K_epochs=4, eps_clip=0.2, device="cpu", activities_embedding_dim=32):
+    def __init__(self, state_dim, num_activities, num_resources,
+                 lr=3e-4, gamma=0.99, K_epochs=4, eps_clip=0.2, device="cpu", activities_embedding_dim=32,
+                 kl_conformance_coef=0.0):
         self.device = device
         self.gamma = gamma
         self.eps_clip = eps_clip
         self.K_epochs = K_epochs
+        self.num_activities = num_activities
+        self.num_resources = num_resources
+        self.kl_conformance_coef = kl_conformance_coef
         
         self.policy = PPOPolicy(state_dim, num_activities, num_resources, activities_embedding_dim=activities_embedding_dim).to(device)
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr)
@@ -49,7 +53,6 @@ class PPOAgent:
                 resource_idx = res_dist.sample()
 
             log_prob = act_dist.log_prob(activity_idx) + res_dist.log_prob(resource_idx)
-            act_probs = act_dist.probs.squeeze(0).tolist()
 
             # Use forward to get value or calculate it from features
             features = self.policy_old.backbone(state_t)
@@ -64,7 +67,7 @@ class PPOAgent:
         self.buffer.activity_masks.append(act_mask_t)
         self.buffer.resource_masks.append(res_mask_t)
 
-        return activity_idx.item(), resource_idx.item(), act_probs
+        return activity_idx.item(), resource_idx.item()
 
     def update(self):
         if not self.buffer.rewards:
@@ -101,15 +104,22 @@ class PPOAgent:
         # calculate advantages
         advantages = rewards.detach() - old_state_values.detach()
 
+        # Branching probs P(a|a_last) are the first num_activities elements of Block B
+        # Block A has shape 3*num_resources + num_activities, so Block B starts there.
+        p_start = 3 * self.num_resources + self.num_activities
+        p_end = p_start + self.num_activities
+        p_routing = old_states[:, p_start:p_end].detach()  # [B, A]
+
         # Optimize policy for K epochs
         total_policy_loss = 0.0
         total_value_loss = 0.0
         total_entropy = 0.0
+        total_kl_conformance = 0.0
         total_loss_val = 0.0
 
         for _ in range(self.K_epochs):
             # Evaluating old actions and values
-            logprobs, entropy, state_values = self.policy.evaluate(
+            logprobs, entropy, state_values, act_probs = self.policy.evaluate(
                 old_states, old_activities, old_resources,
                 old_activity_masks, old_resource_masks
             )
@@ -125,8 +135,17 @@ class PPOAgent:
             value_loss = 0.5 * self.MseLoss(state_values, rewards)
             entropy_bonus = 0.01 * entropy.mean()
 
-            # final loss of PyTorch optimization
-            loss = policy_loss + value_loss - entropy_bonus
+            # KL conformance auxiliary loss: KL(π || P) over unmasked activities
+            eps = 1e-8
+            mask = old_activity_masks  # [B, A], 1=valid 0=masked
+            pi = act_probs * mask
+            pi = pi / (pi.sum(dim=-1, keepdim=True) + eps)
+            p = p_routing * mask
+            p = p / (p.sum(dim=-1, keepdim=True) + eps)
+            kl_per_sample = (pi * torch.log((pi + eps) / (p + eps)) * mask).sum(dim=-1)
+            kl_conformance = kl_per_sample.mean()
+
+            loss = policy_loss + value_loss - entropy_bonus + self.kl_conformance_coef * kl_conformance
 
             # take gradient step
             self.optimizer.zero_grad()
@@ -136,6 +155,7 @@ class PPOAgent:
             total_policy_loss += policy_loss.item()
             total_value_loss += value_loss.item()
             total_entropy += entropy.mean().item()
+            total_kl_conformance += kl_conformance.item()
             total_loss_val += loss.item()
 
         # Copy new weights into old policy
@@ -148,6 +168,7 @@ class PPOAgent:
             "policy_loss": total_policy_loss / self.K_epochs,
             "value_loss": total_value_loss / self.K_epochs,
             "entropy": total_entropy / self.K_epochs,
+            "kl_conformance": total_kl_conformance / self.K_epochs,
             "total_loss": total_loss_val / self.K_epochs,
         }
 

@@ -110,10 +110,12 @@ class TrainingMetricsTracker:
         )
 
     def print_update_summary(self, metrics: UpdateMetrics):
+        kl_str = f"  KLConf={metrics.kl_conformance:.4f}" if metrics.kl_conformance is not None else ""
         print(
             f"  [Update {metrics.update:>3d}] "
             f"PolicyLoss={metrics.policy_loss:.4f}  "
             f"ValueLoss={metrics.value_loss:.4f}  "
             f"Entropy={metrics.entropy:.4f}  "
             f"TotalLoss={metrics.total_loss:.4f}"
+            f"{kl_str}"
         )

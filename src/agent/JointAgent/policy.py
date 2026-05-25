@@ -102,7 +102,7 @@ class PPOPolicy(nn.Module):
 
         value = self.value_head(features).squeeze(-1)
 
-        return log_prob, entropy, value
+        return log_prob, entropy, value, activity_dist.probs
 
     def get_activity_logits(self, state):
         features = self.backbone(state)

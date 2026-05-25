@@ -22,7 +22,7 @@ from contextlib import nullcontext
 from initializer.implementations.DDPSInitializer import DDPSInitializer
 from environment.simulator.core.setup import SimulationSetup
 from environment.core.env import BusinessProcessEnvironment
-from environment.core.reward import RewardFunction,RegularizedSLARewardFunction, SLARewardFunction, CombinedRegularizedSLARewardFunction, KLOnlyRewardFunction
+from environment.core.reward import SLARewardFunction
 from environment.core.mask import NucleusMaskFunction
 from environment.simulator.core.log_names import LogColumnNames
 from environment.simulator.core.engine import SimulatorEngine
@@ -54,8 +54,7 @@ def parse_args():
     parser.add_argument("--top_p", type=float, default=0.9, help="Nucleus filtering for activity mask")
     parser.add_argument("--top_k", type=int, default=3, help="Top-k filtering for activity mask")
     parser.add_argument("--p_min_end", type=float, default=0.1, help="Minimum end probability for activity mask")
-    parser.add_argument("--beta", type=float, default=0.0, help="Distributional regularization strength (0=off, 1=full)")
-    parser.add_argument("--warmup_episodes", type=int, default=0, help="Episodes using KLOnlyRewardFunction before switching to main reward (0=off)")
+    parser.add_argument("--kl_conformance_coef", type=float, default=0.0, help="KL conformance auxiliary loss weight (0=off)")
     return parser.parse_args()
 
 
@@ -134,7 +133,7 @@ def run_single_episode(
                 act_name = simulator.all_activities[act_idx]
                 return env.get_resource_mask(act_name, case)
 
-            act_idx, res_idx, act_probs = agent.select_action(
+            act_idx, res_idx = agent.select_action(
                 state=obs,
                 activity_mask=activity_mask,
                 resource_mask_callback=res_mask_cb,
@@ -144,7 +143,6 @@ def run_single_episode(
             action = np.array([act_idx, res_idx])
 
             activity_type = simulator.all_activities[act_idx]
-            env.set_agent_activity_probs(act_probs)
             next_obs, reward, terminated, truncated, info = env.step(action)
 
             # Store transition in agent buffer (only during training)
@@ -169,7 +167,6 @@ def train_full_agent(
     top_k: int = 3,
     top_p: float = 0.9,
     p_min_end: float = 0.1,
-    beta: float = 0.0,
     lr: float = 3e-4,
     gamma: float = 0.99,
     seed: int = 42,
@@ -177,8 +174,7 @@ def train_full_agent(
     update_every: int = 1,
     run_name: str | None = None,
     resume: str | None = None,
-    warmup_episodes: int = 0,
-    warmup_reward_function: "RewardFunction | None" = None,
+    kl_conformance_coef: float = 0.0,
 ) -> str:
     """Train the full DRL-DRL PPO agent. Returns the run directory."""
     random.seed(seed)
@@ -211,16 +207,15 @@ def train_full_agent(
     print(f"Baseline CR (original log): {baseline_cr:.2%}")
     print(
         f"Parameters: episodes={episodes}, max_cases={max_cases}, lr={lr}, gamma={gamma}, "
-        f"top_p={top_p}, top_k={top_k}, p_min_end={p_min_end}, beta={beta}"
+        f"top_p={top_p}, top_k={top_k}, p_min_end={p_min_end}"
     )
 
-    reward_function = SLARewardFunction() if beta == 0.0 else CombinedRegularizedSLARewardFunction(beta=beta)
     env = BusinessProcessEnvironment(
         simulator,
         sla_threshold=sla_threshold,
         max_cases=max_cases,
         activity_mask_function=NucleusMaskFunction(k=top_k, p=top_p, p_min_end=p_min_end),
-        reward_function=reward_function,
+        reward_function=SLARewardFunction(),
     )
 
     agent = PPOAgent(
@@ -229,6 +224,7 @@ def train_full_agent(
         num_resources=simulator.num_resources,
         lr=lr,
         gamma=gamma,
+        kl_conformance_coef=kl_conformance_coef,
     )
 
     start_episode = 1
@@ -241,7 +237,7 @@ def train_full_agent(
         "episodes": episodes, "max_cases": max_cases,
         "sla_percentile": percentile, "sla_threshold": sla_threshold, "baseline_cr": baseline_cr,
         "lr": lr, "gamma": gamma, "seed": seed,
-        "top_p": top_p, "top_k": top_k, "p_min_end": p_min_end, "beta": beta,
+        "top_p": top_p, "top_k": top_k, "p_min_end": p_min_end,
     }
     tracker = TrainingMetricsTracker(log_dir=run_dir, hyperparams=hyperparams)
 
@@ -252,14 +248,6 @@ def train_full_agent(
     update_count = 0
 
     for ep in range(start_episode, episodes + 1):
-        if warmup_reward_function is not None and ep <= warmup_episodes:
-            if ep == start_episode or ep == 1:
-                print(f"  [Warmup] Using {warmup_reward_function.__class__.__name__} for episodes 1–{warmup_episodes}")
-            env.reward_function = warmup_reward_function
-        elif warmup_reward_function is not None and ep == warmup_episodes + 1:
-            print(f"  [Warmup done] Switching to {reward_function.__class__.__name__} from episode {ep}")
-            env.reward_function = reward_function
-
         ep_start = time.time()
         total_reward, num_steps, cycle_times = run_single_episode(
             env=env, simulator=simulator, agent=agent, deterministic=False,
@@ -286,6 +274,7 @@ def train_full_agent(
                     total_loss=loss_info.get("total_loss", 0.0),
                     approx_kl=loss_info.get("approx_kl"),
                     clip_fraction=loss_info.get("clip_fraction"),
+                    kl_conformance=loss_info.get("kl_conformance"),
                 )
                 tracker.log_update(upd)
                 tracker.print_update_summary(upd)
@@ -330,7 +319,6 @@ def main():
         top_k=args.top_k,
         top_p=args.top_p,
         p_min_end=args.p_min_end,
-        beta=args.beta,
         lr=args.lr,
         gamma=args.gamma,
         seed=args.seed,
@@ -338,8 +326,7 @@ def main():
         update_every=args.update_every,
         run_name=args.run_name,
         resume=args.resume,
-        warmup_episodes=args.warmup_episodes,
-        warmup_reward_function=KLOnlyRewardFunction() if args.warmup_episodes > 0 else None,
+        kl_conformance_coef=args.kl_conformance_coef,
     )
 
 

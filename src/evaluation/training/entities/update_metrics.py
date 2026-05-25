@@ -14,3 +14,4 @@ class UpdateMetrics:
     total_loss: float
     approx_kl: Optional[float] = None
     clip_fraction: Optional[float] = None
+    kl_conformance: Optional[float] = None
