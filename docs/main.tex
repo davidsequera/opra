@@ -31,8 +31,8 @@
 \title{Flexible Policy Learning for Joint Activity Routing and Resource Allocation in Business Process Simulation}
 % Optional running title (shortened):
 \titlerunning{Flexible Policy Learning for Routing and Resource Allocation}
-% If the paper title is too long for the running head, you can set
-% an abbreviated paper title here
+% If the article title is too long for the running head, you can set
+% an abbreviated article title here
 %
 %\author{David Sequera\inst{1}\orcidID{} \and Oscar González-Rojas\inst{1}\orcidID{0000-0002-8296-6620} }
 %
@@ -45,11 +45,8 @@
 \maketitle
 
 \begin{abstract}
-%% Version enviada
 Business process optimization through simulation has advanced along two prominent yet largely independent lines: resource allocation, which decides who executes each activity, and prescriptive process monitoring, which decides what should happen next. Although both target overlapping operational objectives, their models and action spaces remain separate, limiting the flexibility available to any single optimization approach. This article presents a method that unifies both perspectives through deep reinforcement learning (DRL). The proposed method expands the action space by allowing the agent to jointly select for a given case the next activity and its executing resource at each decision point, enabling it to explore process configurations that neither approach can reach in isolation. We formalize this problem as a Markov Decision Process over a stochastic simulation environment learned from event logs, and define an architecture in which a DRL agent learns a policy that maximizes compliance with service-level agreements (SLAs), defined as cycle time thresholds. The agent operates under a masked policy guided by learned branching probabilities to preserve realistic process behavior despite the enlarged action space. This learned policy gives flexibility to improve the process whereas prevent greedy or unrealistic decisions. We validated the flexibility of policy learning on three real-life event logs against heuristic and learning-based baselines. The evaluation was performed using both SLA compliance metrics and a multi-perspective similarity framework covering control-flow, temporal, resource, and congestion dimensions. Results show that the joint optimization of activity routing and resource allocation increases SLA compliance while preserving realistic process behavior across all measured perspectives.
-%
-%Version ???
-%Business process optimization through simulation has advanced along two prominent yet largely independent lines: resource allocation, which decides who executes each activity, and prescriptive process monitoring, which decides what should happen next. Although both lines address overlapping operational objectives, their models and action spaces remain separate, limiting the flexibility available to any single optimization approach. this article proposes a methodology that unifies both perspectives through a joint decision framework based on deep reinforcement learning (DRL). The proposed method expands the action space by allowing the agent to jointly select, for a given case, the next activity and its executing resource at each decision point, this \textbf{flexibility} enables the agent to explore process configurations that neither approach can reach in isolation. We formalize this problem as a Markov Decision Process over a stochastic simulation environment learned from event logs, and define an architecture in which a DRL agent learns a policy that maximizes compliance with service-level agreements (SLAs), defined as cycle-time thresholds. To preserve realistic process behavior despite the enlarged action space, the agent operates under a \textbf{flexible masked policy} guided by learned branching probabilities, flexible enough to improve the process, yet constrained enough to prevent greedy or unrealistic decisions. We validate the approach on three real-life event logs against heuristic and learning-based baselines, and evaluate it using both SLA compliance metrics and a multi-perspective similarity framework covering control-flow, temporal, resource, and congestion dimensions. The results show that jointly optimizing activity routing and resource allocation increases SLA compliance while preserving realistic process behavior across all measured perspectives.
+
 \keywords{Business process simulation \and Deep reinforcement learning \and Joint optimization \and Activity routing \and Resource allocation \and Policy learning \and Service-level agreements}
 \end{abstract}
 
@@ -64,9 +61,9 @@ This article proposes a unified decision framework in which a DRL agent jointly 
 
 The full contribution of this article is threefold. First, we formalize joint activity routing and resource allocation as a Markov Decision Process (MDP) over a stochastic BPS environment learned from event logs, defining a case-aware state representation that includes the case's positional prefix and branching probability vector alongside global resource utilization features. Second, we introduce the masked policy as an algorithmic mechanism for realistic flexible routing, and characterize its role in bounding the agent's exploration to process-consistent behaviors. Third, we ground the behavioral analysis in the similarity metrics of \citeauthor{framework_for_measuring_the_quality_of_business_process_simulation_models}~\cite{framework_for_measuring_the_quality_of_business_process_simulation_models}, covering control-flow, temporal, resource, and congestion dimensions, and complement these with a set of performance metrics; including SLA compliance rate, compliance improvement ratio, cycle time dispersion, and resource utilization balance ; designed to assess the agent's operational impact. Together, these two layers form an evaluation framework which assesses both whether the agent improves operational performance and whether it does so while preserving process realism. For evaluation purposes, the optimization objective is a cycle time threshold derived as a percentile of the original log's empirical distribution, to comply with an artificial service level of agreement (SLA). The agent architecture and masked policy are objective-agnostic and can be applied to other operational metrics depending on business needs.
 
-We validate the approach on four real-life event logs of varying scale and domain against five baselines forming a progressive ablation from fully random decisions through heuristic and ML-driven routing to DRL-based resource allocation and finally to full joint DRL control, directly isolating the contribution of each component.
+We validate the approach on three real-life event logs of varying scale and domain against five configurations forming a progressive ablation from fully random decisions through heuristic and ML-driven routing to DRL-based resource allocation and finally to full joint DRL control, directly isolating the contribution of each component.
 
-The remainder of the paper is structured as follows. Section~\ref{sec:related_work} reviews related work and positions the contribution. Section~\ref{sec:formalization} formalizes the problem as an MDP. Section~\ref{sec:approach} describes the approach with particular attention to the masked policy and state representation. Section~\ref{sec:evaluation} presents the evaluation design and preliminary validation. Section~\ref{sec:conclusion} concludes and outlines future directions.
+The remainder of the article is structured as follows. Section~\ref{sec:related_work} reviews related work and positions the contribution. Section~\ref{sec:formalization} formalizes the problem as an MDP. Section~\ref{sec:approach} describes the approach with particular attention to the masked policy and state representation. Section~\ref{sec:evaluation} presents the evaluation design and preliminary validation. Section~\ref{sec:conclusion} concludes and outlines future directions.
 
 \section{Process Optimization, Related Work and Research Gap}
 \label{sec:related_work}
@@ -75,7 +72,7 @@ The remainder of the paper is structured as follows. Section~\ref{sec:related_wo
 \label{subsec:related_work_simulation_env}
 
 %Both lines of work depend on the quality of the underlying simulation environment. 
-Business process simulation has evolved through three broad approaches: data-driven process simulation (DDPS), which discovers process components such as routing probabilities and resource calendars directly from event logs; deep learning-based simulation, which replaces hand-crafted components with neural models to capture temporal and behavioral patterns; and hybrid simulation, a more recent and promising direction that combines the interpretable structure of DDPS with the predictive accuracy of deep learning. The approaches presented in~\cite{camargo2023hybrid} and ~\cite{Runtime_integration_of_simulation_for_business_processes} are representative of this hybrid line, the latter introducing runtime integration of ML predictions, known as RIMS, enabling queue-aware time estimation and decision-point modeling. The simulation design adopted in this article draws conceptually from this hybrid paradigm, particularly its runtime ML integration and decision-point modeling, extended to support agent-driven activity and resource selection.
+Business process simulation has evolved through three broad approaches: data-driven process simulation (DDPS), which discovers process components such as routing probabilities and resource calendars directly from event logs; deep learning-based simulation, which replaces hand-crafted components with neural models to capture temporal and behavioral patterns; and hybrid simulation, a more recent and promising direction that combines the interpretable structure of DDPS with the predictive accuracy of deep learning. The approaches presented in~\cite{camargo2023hybrid} and~\cite{Runtime_integration_of_simulation_for_business_processes} are representative of this hybrid line, the latter introducing runtime integration of ML predictions, known as RIMS, enabling queue-aware time estimation and decision-point modeling. The simulation design adopted in this article draws conceptually from this hybrid paradigm, particularly its runtime ML integration and decision-point modeling, extended to support agent-driven activity and resource selection.
 
 \subsection{Related Work}
 
@@ -145,7 +142,7 @@ The two lines of work reviewed above share a common limitation, though it manife
 
 We argue that \emph{flexibility}, understood as the capacity to dynamically delimit the action space in a way that is tunable between process conformance and operational improvement, is the missing dimension in both lines of work. A decision framework that incorporates flexibility as a first-class property can interpolate between conservative behavior that closely mirrors the original process and more exploratory behavior that pursues performance gains through alternative routing, with the degree of exploration governed by interpretable parameters.
 
-To the best of our knowledge, no prior work in business process optimization has formalized this notion of flexibility as part of the decision framework, nor proposed a mechanism to \emph{implement} it within a learned policy. this article addresses that gap by introducing a flexible masked policy that makes the action-space boundaries explicit and tunable, grounding them in the process's empirical routing behavior.
+To the best of our knowledge, no prior work in business process optimization has formalized this notion of flexibility as part of the decision framework, nor proposed a mechanism to \emph{implement} it within a learned policy. This article addresses that gap by introducing a flexible masked policy that makes the action-space boundaries explicit and tunable, grounding them in the process's empirical routing behavior.
 
 \section{Problem Formalization}
 \label{sec:formalization}
@@ -167,12 +164,12 @@ At each such point, two interdependent choices must be made jointly: which activ
 $a\in A$ to execute next, and which resource $r\in R$ to assign to it. Prior
 work resolves these choices separately, fixing activity selection through a
 routing model and delegating only resource assignment to the optimization
-policy. this article treats them as a single joint action $\alpha=(a,r)$.
+policy. This article treats them as a single joint action $\alpha=(a,r)$.
 
-\subsection{Optimization Problem Formulation}
+\subsection{Problem Formulation}
 \label{subsec:mdp_formulation}
 
-We formalize the optimization problem as a Markov Decision Process (MDP). 
+We formalize the problem as a Markov Decision Process (MDP). 
 An MDP is mathematical model that provides a principled way to model an environment
 in which an agent learns by interaction: rather than prescribing a strategy, 
 it defines the space of situations the agent may encounter, the actions available in each,
@@ -205,17 +202,19 @@ waiting time, free a bottleneck resource, or accelerate case completion,
 but the exact outcome depends on the state of the broader process. Finally,
 the \textbf{reward function} encodes the operational objective, quantifying
 the desirability of each transition so the agent can connect actions to
-outcomes. This is where the optimization goal is defined: one could reward
+outcomes. This is where the optimization objective is defined: one could reward
 the agent for reaching specific activities, for reducing cost, or; as this
-paper proposes; for completing cases within a service-level agreement, so
+article proposes; for completing cases within a service-level agreement, so
 that the agent learns to maximize the proportion of cases whose cycle time
 falls below a prescribed threshold $T$.
 
 \subsection{Flexibility as a Problem Property}
 \label{subsec:flexibility}
 
-The MDP formulation above leaves one degree of freedom unspecified: the
-definition of $\mathcal{F}_c$. Any choice of $\mathcal{F}_c$ yields a valid
+The MDP formulation above leaves one design choice unspecified: the
+definition of flexibility formally defined as $\mathcal{F}_c$ in Section~\ref{subsec:mask}, 
+as a filter of the activities action space to obtain more similar simulation to the original log.
+Any choice of $\mathcal{F}_c$ yields a valid
 instance of the MDP, but the choice determines where on the spectrum between
 process conformance and operational performance the agent operates. At one
 extreme, setting $\mathcal{F}_c$ to the single most probable activity
@@ -259,29 +258,36 @@ The architecture distinguishes between two components with separate responsibili
 
 The simulator is built around a policy interface architecture that decouples each behavioral component from the simulation engine itself. Six interfaces define the simulator's behavior: the \textbf{routing policy} determines the next activity at each decision point; the \textbf{processing time policy} determines how long an activity takes to execute; the \textbf{waiting time policy} models delays before execution begins; the \textbf{arrival policy} controls how new cases enter the process; the \textbf{calendar policy} governs resource availability over time; and the \textbf{resource policy} determines which resource is assigned to a given activity. Any implementation conforming to a given interface can be substituted without modifying the simulation engine, making the architecture extensible by design.
 
-The current implementations instantiate each interface as follows. Routing follows an XOR-only policy, meaning the process structure admits sequential branching without parallel splits; branching probabilities are estimated as conditional activity frequencies computed directly from the log. Processing and arrival times are sampled empirically per activity from the observed log distributions, preserving the full distributional shape including heavy tails and multimodality that parametric fits tend to distort. The calendar policy normalizes resource availability per weekday and determines availability using a percentile-based threshold. The resource policy assigns resources based on skill compatibility. The waiting time policy is not used in the current evaluation. At the decision point, the routing and resource interfaces are overridden by the DRL agent through the environment layer; rather than sampling the next activity from the branching distribution, the environment exposes the decision to the agent, using the branching probabilities to compute $\mathcal{F}_c$ as described in Section~\ref{subsec:mask}.
+The current implementations instantiate each interface as follows. Routing follows an XOR-only policy, meaning the process structure admits sequential branching without parallel splits (cases run in parallel, in the actual); branching probabilities are calculated from the frequencies of an activity given the previous activity extracted from the log. Processing and arrival times are sampled empirically per activity from the observed log distributions, preserving the full distributional shape including heavy tails and multimodality that parametric fits tend to distort. The calendar policy normalizes resource availability per weekday and determines availability using a percentile-based threshold. The resource policy assigns resources based on skill compatibility. The waiting time policy is not used in the current evaluation. At the decision point, the routing and resource interfaces are overridden by the DRL agent through the environment layer; rather than sampling the next activity from the branching distribution, the environment exposes the decision to the agent, using the branching probabilities to compute $\mathcal{F}_c$ as described in Section~\ref{subsec:mask}.
 
 \subsection{State Representation}
 \label{subsec:state_representation}
 
 The state $s\in\mathbb{R}^{d}$ is a fixed-size vector observed by the agent at
 each decision point and normalized to $[0,1]$. It concatenates three groups of
-features.
-\\
+features.The following auxiliary functions and parameters are used throughout 
+the state definition. $\mathrm{count}(r_i)$ denotes the number of 
+activity instances currently being executed by resource $r_i$; 
+$\mathrm{cap}(r_i)$ denotes its maximum concurrent execution capacity; 
+$\mathrm{queue}(r_i)$ denotes the set of cases waiting to be assigned 
+to resource $r_i$; $\mathrm{pending}(a_j)$ denotes the set of cases 
+that have reached a decision point where activity $a_j$ is a candidate 
+next step; and $T$ is the SLA cycle time threshold.
 
-\paragraph{Global resource features ($3|R|$).}
+
+\paragraph{Global resource features - $3|R|$.}
 \begin{itemize}[label=$\bullet$, itemsep=0pt, topsep=1pt]
   \item \textbf{Utilization:} $u_i = \mathrm{count}(r_i) / \mathrm{cap}(r_i)$.
   \item \textbf{Assignment:} $\eta_i = j/|A|$ if resource $r_i$ is currently executing activity $a_j$, and $0$ otherwise.
   \item \textbf{Queue pressure:} $q_i = \min\!\bigl(|\mathrm{queue}(r_i)|/\theta_q,\, 1\bigr)$.
 \end{itemize}
 
-\paragraph{Demand features ($|A|$).}
+\paragraph{Demand features - $|A|$.}
 \begin{itemize}[label=$\bullet$, itemsep=0pt, topsep=1pt]
   \item \textbf{Pending demand:} $\kappa_j = \min\!\bigl(|\mathrm{pending}(a_j)|/\theta_q,\, 1\bigr)$.
 \end{itemize}
 
-\paragraph{Case-specific features ($|A|+5$).}
+\paragraph{Case-specific features - $|A|+5$.}
 \begin{itemize}[label=$\bullet$, itemsep=0pt, topsep=1pt]
   \item \textbf{Last activity:} $\ell_c = j/|A|$, where $a_j$ is the last executed activity in case $c$ (and $\ell_c=0$ if undefined).
   \item \textbf{Trace length:} $\lambda_c = \min\!\bigl(|\sigma_c|/\theta_\lambda,\, 1\bigr)$.
@@ -311,7 +317,7 @@ sufficient information to learn availability-aware assignment through the
 reward signal. This allows the policy to capture nuanced trade-offs; for 
 instance, waiting for a more suitable resource versus immediately assigning 
 a less suitable one; while keeping the action space definition clean and 
-the policy general.The constants $\theta_q = 10$ and $\theta_\lambda = 20$ are the normalization 
+the policy general. The constants $\theta_q = 10$ and $\theta_\lambda = 20$ are the normalization 
 caps for queue-based features and trace length respectively; they are fixed 
 empirically to cover the range observed across the event logs used in the 
 evaluation, and values exceeding the cap are clamped to $1$.
@@ -321,7 +327,7 @@ evaluation, and values exceeding the cap are clamped to $1$.
 
 The flexible masked policy is the central algorithmic contribution of this article and the mechanism through which flexibility; as defined in Section~\ref{sec:formalization}; is \textit{implemented}. At each decision point, before the agent selects an action, the set of candidate activities is restricted to a process-consistent subset $\mathcal{F}_c\subseteq A$ derived from the branching probability vector $\mathbf{b}_c$. Three complementary filters define this subset.
 
-The \textbf{top-$k$ filter} retains only the $k$ activities with the highest branching probability, limiting routing choices to the most process-consistent options. The \textbf{top-$p$ filter} retains the minimal set of activities whose cumulative probability mass reaches or exceeds $p$, ensuring that retained candidates collectively account for a sufficient proportion of observed routing behavior. The \textbf{minimum terminal probability threshold} $p_{\mathrm{end}}^{\min}$ applies exclusively to terminal activities; it enforces a lower bound on the probability of any selectable terminal activity, preventing the agent from closing a case prematurely before sufficient process progress has been made, We denote $\Omega\subseteq A$  as the set of terminal states.The three conditions are applied conjunctively: an activity mustsatisfy all applicable filters simultaneously to be admitted into $\mathcal{F}_c$.
+The \textbf{top-$k$ filter} retains only the $k$ activities with the highest branching probability, limiting routing choices to the most process-consistent options. The \textbf{top-$p$ filter} retains the minimal set of activities whose cumulative probability mass reaches or exceeds $p$, ensuring that retained candidates collectively account for a sufficient proportion of observed routing behavior. The \textbf{minimum terminal probability threshold} $p_{\mathrm{end}}^{\min}$ applies exclusively to terminal activities; it enforces a lower bound on the probability of any selectable terminal activity, preventing the agent from closing a case prematurely before sufficient process progress has been made. We denote $\Omega\subseteq A$  as the set of terminal states.The three conditions are applied conjunctively: an activity must satisfy all applicable filters simultaneously to be admitted into $\mathcal{F}_c$.
 
 
 \[
@@ -352,23 +358,24 @@ Note that the discount factor $\gamma$ appears here as a hyperparameter of GAE r
 The reward function guides the agent toward cycle time compliance through a
 piecewise-linear design with two regimes: an \textbf{intermediate shaping
 signal} issued at every step, and a \textbf{terminal gate} that encodes SLA
-compliance at case completion. Let $ct(\sigma)$ denote the elapsed cycle time
-of case $\sigma$ and $T$ the service-level threshold.
+compliance at case completion. Let $ct(\sigma)$ denote the elapsed cycle time of case $\sigma$,
+$T$ the service-level threshold, and $H$ a scaling constant controlling the magnitude of rewards
+and penalties, set to $H=1$ in all experiments.
 
 During execution, the shaping signal provides dense directional feedback:
 
 \[
 \mathcal{R}_{\text{int}}(s,\alpha)=
 \begin{cases}
-\dfrac{K}{100}\!\left(1-\dfrac{ct(\sigma)}{T}\right), &
+\dfrac{H}{1000}\!\left(1-\dfrac{ct(\sigma)}{T}\right), &
   \text{if } ct(\sigma)<T,\\[10pt]
--\dfrac{K}{100}\cdot\dfrac{ct(\sigma)}{T}, &
+-\dfrac{H}{100}\cdot\dfrac{ct(\sigma)}{T}, &
   \text{if } ct(\sigma)\ge T.
 \end{cases}
 \]
 
 When the elapsed time remains within the SLA budget, the agent receives a
-positive reward that decreases linearly from $+K/100$ (at case start) to $0$
+positive reward that decreases linearly from $+H/1000$ (at case start) to $0$
 as $ct(\sigma)\to T$, continuously favoring faster progress. Once the threshold
 is exceeded, the signal turns negative and grows in magnitude proportionally to
 the degree of violation, increasing pressure to avoid further delay. At case
@@ -377,14 +384,15 @@ completion, the terminal reward overrides the shaping signal:
 \[
 \mathcal{R}_{\text{term}}(s,\alpha)=
 \begin{cases}
-+K, & ct(\sigma)<T,\\
--K, & ct(\sigma)\ge T.
++H, & ct(\sigma)<T,\\
+-H, & ct(\sigma)\ge T.
 \end{cases}
 \]
 
-The $K/100$ scaling factor on the intermediate signal is deliberate: it ensures
+The $H/1000$ scaling factor on the intermediate signal is deliberate: it ensures
 that the terminal reward dominates the learning objective, so the agent
-optimizes for SLA compliance as an outcome rather than for step-level speed.
+optimizes for SLA compliance as an outcome rather than promoting the agent
+to stay in the simulation for a bigger reward.
 The intermediate component acts as a shaping term in the sense of
 reward shaping~\cite{sutton_2018_rl_intro}, providing denser gradient
 information without distorting the compliance objective. In PPO, these rewards
@@ -413,7 +421,7 @@ ensuring that similarity results are directly comparable to established
 reference values from calibrated BPS models. Table~\ref{tab:datasets} 
 summarizes their characteristics. The logs span academic credential 
 management (AC\_CRE), and financial loan applications at two scales 
-(BPIC12, BPIC17), covering processes of increasing complexity and 
+(BPIC12\_W, BPIC17\_W), covering processes of increasing complexity and 
 resource pool size.
 %
 \begin{table}[!ht]
@@ -427,8 +435,8 @@ resource pool size.
 \textbf{Activities} & \textbf{Resources} & \textbf{Variants} \\
 \hline
 AC\_CRE  & 796       & 3{,}733    & 16 & 306+  & 54+      \\
-BPIC12   & 6{,}006   & 34{,}906   & 6  & 53+   & 735+     \\
-BPIC17   & 14{,}778  & 105{,}342  & 7  & 113+  & 1{,}843+ \\
+BPIC12\_W   & 6{,}006   & 34{,}906   & 6  & 53+   & 735+     \\
+BPIC17\_W   & 14{,}778  & 105{,}342  & 7  & 113+  & 1{,}843+ \\
 \hline
 \end{tabular}
 \caption{Event logs used in the evaluation.}
@@ -453,8 +461,8 @@ optimization potential for each specific process.
 $p_{\mathrm{end}}^{\min}$ \\
 \hline
 AC\_CRE & $T_{90}$ & 2 & 0.9 & 0.3 \\
-BPIC12  & $T_{90}$ & 2 & 0.9 & 0.3 \\
-BPIC17  & $T_{80}$ & 3 & 0.9 & 0.1 \\
+BPIC12\_W  & $T_{90}$ & 2 & 0.9 & 0.3 \\
+BPIC17\_W  & $T_{80}$ & 3 & 0.9 & 0.1 \\
 \hline
 \end{tabular}
 \caption{PPO training configuration per log.}
@@ -476,6 +484,39 @@ covering control-flow (NGD), temporal (AED, CED, RED, CAR), resource
 (CWD), and congestion (CTD) perspectives. For each metric, 
 $K=10$ simulated logs are compared against the original log and 
 results reported as mean with 95\% confidence interval.
+
+\begin{table}[!ht]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\renewcommand{\arraystretch}{1.05}
+\begin{tabularx}{\textwidth}{@{}
+  >{\RaggedRight\arraybackslash}p{2.0cm}
+  >{\RaggedRight\arraybackslash}p{1.0cm}
+  >{\RaggedRight\arraybackslash}X
+@{}}
+\toprule
+\textbf{Perspective} & \textbf{Metric} & \textbf{Comparison Method} \\
+\midrule
+\multirow{2}{*}{Control-flow} & NGD  & Histogram of activity $n$-grams (SAE) \\
+                               & CFLD & Damerau–Levenshtein + Hungarian matching \\
+\midrule
+\multirow{3}{*}{Temporal}     & AED  & EMD on hourly event time-series \\
+                               & CED  & Avg.\ EMD per weekday ($7{\times}24$ matrix) \\
+                               & RED  & EMD on events relative to case start \\
+\midrule
+Resource                       & CWD  & Avg.\ EMD of active resource counts per weekday-hour \\
+\midrule
+\multirow{2}{*}{Congestion}   & CAR  & EMD on hourly case arrivals \\
+                               & CTD  & 1-Wasserstein on cycle-time histogram \\
+\midrule
+\multirow{2}{*}{Operational}  & CR   & Fraction of cases with $ct(\sigma) < T$,\ \ $T \in \{T_{95}, T_{90}, T_{75}, T_{50}\}$ \\
+                               & CIR  & Relative CR gain of improved vs.\ reference model \\
+\bottomrule
+\end{tabularx}
+\caption{Evaluation  metrics.\cite{framework_for_measuring_the_quality_of_business_process_simulation_models}}
+\label{tab:metrics}
+\end{table}
 
 \subsection{SLA Compliance Results}
 \label{subsec:compliance}
@@ -499,11 +540,11 @@ $T_{75}$ & $T_{50}$ \\
   & CR  & 0.998 & 0.989 & 0.865 & 0.515 \\
   & CIR & +5.1\% & +9.9\% & +15.5\% & +3.0\% \\
 \hline
-\multirow{2}{*}{BPIC12}
+\multirow{2}{*}{BPIC12\_W}
   & CR  & 0.998 & 0.991 & 0.937 & 0.335 \\
   & CIR & +5.1\% & +10.2\% & +24.9\% & $-$33.1\% \\
 \hline
-\multirow{2}{*}{BPIC17}
+\multirow{2}{*}{BPIC17\_W}
   & CR  & 1.000 & 0.997 & 0.975 & 0.839 \\
   & CIR & +5.2\% & +10.8\% & +30.1\% & +67.8\% \\
 \hline
@@ -518,13 +559,13 @@ $T_{95}$ and $T_{90}$, confirming that the policy generalizes
 to thresholds above the training target. Gains increase 
 substantially at $T_{75}$, where the original process leaves 
 the most room for improvement through routing and resource 
-decisions. BPIC17 presents the strongest result overall, with 
+decisions. BPIC17\_W presents the strongest result overall, with 
 a CIR of $+67.8\%$ at $T_{50}$; the agent trained at $T_{80}$ 
 transfers effectively to a more demanding target, substantially 
 restructuring case execution to bring a large proportion of 
 cases within the empirical median cycle time.
 
-The negative CIR at $T_{50}$ for BPIC12 ($-33.1\%$) warrants 
+The negative CIR at $T_{50}$ for BPIC12\_W ($-33.1\%$) warrants 
 explicit interpretation. $T_{50}$ requires the agent to compress 
 cycle times below the historical median across all cases; this is 
 a structurally aggressive target that cannot be met through 
@@ -559,11 +600,11 @@ CWD & CAR & CTD \\
   & DRL-AR & 0.47 & 109.5 & 3.22 & 40.1  & 3.19 & 150.7 & 61.5 \\
   & Ref.   & 0.13 & 91.7  & 1.63 & 10.0  & 2.27 & 110.4 & 62.2 \\
 \hline
-\multirow{2}{*}{BPIC12}
+\multirow{2}{*}{BPIC12\_W}
   & DRL-AR & 0.41 & 84.7  & 2.10 & 95.7  & 2.06 & 80.7  & 78.3 \\
   & Ref.   & 0.13 & 29.2  & 2.10 & 4.00  & 2.12 & 153.3 & 93.5 \\
 \hline
-\multirow{2}{*}{BPIC17}
+\multirow{2}{*}{BPIC17\_W}
   & DRL-AR & 0.42 & 126.3 & 3.14 & 124.1 & 3.24 & 161.8 & 153.9 \\
   & Ref.   & 0.06 & 51.2  & 1.65 & 62.8  & 1.59 & 121.9 & 102.9 \\
 \hline
@@ -600,7 +641,7 @@ SLA targets. Cases that complete faster necessarily exhibit
 a different internal temporal structure and a shifted cycle 
 time distribution; this is not behavioral drift but the 
 expected consequence of a policy that successfully compresses 
-cycle times. The CAR distances are large for BPIC17, reflecting 
+cycle times. The CAR distances are large for BPIC17\_W, reflecting 
 differences in the arrival process between training and 
 evaluation periods; since the agent does not control case 
 arrivals, this deviation is attributable to the arrival model 
@@ -631,14 +672,14 @@ the natural next step. Regarding external validity, the
 evaluation covers three logs from two domains and results 
 may not generalize to processes with substantially different 
 structural characteristics. Regarding construct validity, 
-the Chapela-Campa et al.\ similarity framework has been 
-independently validated but may not capture all dimensions 
-of behavioral fidelity relevant to specific application domains.
+the \citeauthor{framework_for_measuring_the_quality_of_business_process_simulation_models}
+similarity framework has been independently validated but may not
+capture all dimensions of behavioral fidelity relevant to specific application domains.
 
 \section{Conclusion and Future Work}
 \label{sec:conclusion}
 
-This paper introduced a unified decision framework in which a DRL agent 
+This article introduced a unified decision framework in which a DRL agent 
 jointly selects the next activity and its executing resource as a single 
 action $(a,r)$ at each decision point in a business process simulation. 
 The central contribution is the formalization of \textbf{flexibility}; 
@@ -652,7 +693,7 @@ The evaluation demonstrates that the framework achieves its intended
 purpose on both dimensions. From a performance perspective, the DRL-AR 
 agent consistently increases SLA compliance across three real-life logs 
 and multiple threshold levels, with gains reaching up to $+30\%$ CIR 
-at $T_{75}$ and, in the best cases, $+67.8\%$ at $T_{50}$ for BPIC17; 
+at $T_{75}$ and, in the best cases, $+67.8\%$ at $T_{50}$ for BPIC17\_W; 
 more conservative improvements around $+5\%$ are consistently observed 
 at $T_{95}$ across all logs. These results confirm that the agent 
 genuinely restructures process execution rather than exploiting 
@@ -663,7 +704,7 @@ and workforce similarity metrics (CED, CWD) remain within the range of
 calibrated BPS models, confirming that the policy respects the temporal 
 and resource patterns of the original process.
 
-\textbf{Furture Work}: Several directions extend the present work naturally. A first priority 
+\textbf{Future Work}: Several directions extend the present work naturally. A first priority 
 is policy interpretability: introducing models such as decision trees or 
 rule extraction techniques to characterize the agent's learned 
 behavior, and comparing the inferred rules against the original process 
@@ -683,7 +724,7 @@ enhancing SLA urgency estimation and enabling the agent to exploit
 case-level patterns the current state representation cannot capture.
 
 Fourth, extending the simulator to support parallel branching through 
-full Petri net integration would allow the framework to be applied to 
+full Petri-net integration would allow the framework to be applied to 
 processes with AND-split structures, raising new questions about how 
 the agent handles intra-case concurrency and resource competition.
 
@@ -693,8 +734,10 @@ exploration grounded in operational goals such as outcome-based
 routing or cost minimization.
 
 \bigskip
-\noindent\textit{Reproducibility.} The repository 
-has been omitted from this submission to preserve double-blind review.
+\noindent\textit{Reproducibility.} The source code is available at 
+\url{https://anonymous.4open.science/r/Optimal-Predictor-of-Resources-and-Activities-7C7D/README.md} 
+and the event logs and aggregated results are archived at 
+\url{https://zenodo.org/records/20245960}.
 
 % ---- Bibliography ----
 % BibTeX users: keep your main.bib and compile with:

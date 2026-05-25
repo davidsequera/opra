@@ -22,7 +22,7 @@ from contextlib import nullcontext
 from initializer.implementations.DDPSInitializer import DDPSInitializer
 from environment.simulator.core.setup import SimulationSetup
 from environment.core.env import BusinessProcessEnvironment
-from environment.core.reward import RegularizedSLARewardFunction, SLARewardFunction
+from environment.core.reward import RewardFunction,RegularizedSLARewardFunction, SLARewardFunction, CombinedRegularizedSLARewardFunction, KLOnlyRewardFunction
 from environment.core.mask import NucleusMaskFunction
 from environment.simulator.core.log_names import LogColumnNames
 from environment.simulator.core.engine import SimulatorEngine
@@ -55,6 +55,7 @@ def parse_args():
     parser.add_argument("--top_k", type=int, default=3, help="Top-k filtering for activity mask")
     parser.add_argument("--p_min_end", type=float, default=0.1, help="Minimum end probability for activity mask")
     parser.add_argument("--beta", type=float, default=0.0, help="Distributional regularization strength (0=off, 1=full)")
+    parser.add_argument("--warmup_episodes", type=int, default=0, help="Episodes using KLOnlyRewardFunction before switching to main reward (0=off)")
     return parser.parse_args()
 
 
@@ -133,7 +134,7 @@ def run_single_episode(
                 act_name = simulator.all_activities[act_idx]
                 return env.get_resource_mask(act_name, case)
 
-            act_idx, res_idx = agent.select_action(
+            act_idx, res_idx, act_probs = agent.select_action(
                 state=obs,
                 activity_mask=activity_mask,
                 resource_mask_callback=res_mask_cb,
@@ -143,7 +144,7 @@ def run_single_episode(
             action = np.array([act_idx, res_idx])
 
             activity_type = simulator.all_activities[act_idx]
-            # print(case.case_id,activity_type)
+            env.set_agent_activity_probs(act_probs)
             next_obs, reward, terminated, truncated, info = env.step(action)
 
             # Store transition in agent buffer (only during training)
@@ -176,6 +177,8 @@ def train_full_agent(
     update_every: int = 1,
     run_name: str | None = None,
     resume: str | None = None,
+    warmup_episodes: int = 0,
+    warmup_reward_function: "RewardFunction | None" = None,
 ) -> str:
     """Train the full DRL-DRL PPO agent. Returns the run directory."""
     random.seed(seed)
@@ -211,7 +214,7 @@ def train_full_agent(
         f"top_p={top_p}, top_k={top_k}, p_min_end={p_min_end}, beta={beta}"
     )
 
-    reward_function = SLARewardFunction() if beta == 0.0 else RegularizedSLARewardFunction(beta=beta)
+    reward_function = SLARewardFunction() if beta == 0.0 else CombinedRegularizedSLARewardFunction(beta=beta)
     env = BusinessProcessEnvironment(
         simulator,
         sla_threshold=sla_threshold,
@@ -249,6 +252,14 @@ def train_full_agent(
     update_count = 0
 
     for ep in range(start_episode, episodes + 1):
+        if warmup_reward_function is not None and ep <= warmup_episodes:
+            if ep == start_episode or ep == 1:
+                print(f"  [Warmup] Using {warmup_reward_function.__class__.__name__} for episodes 1–{warmup_episodes}")
+            env.reward_function = warmup_reward_function
+        elif warmup_reward_function is not None and ep == warmup_episodes + 1:
+            print(f"  [Warmup done] Switching to {reward_function.__class__.__name__} from episode {ep}")
+            env.reward_function = reward_function
+
         ep_start = time.time()
         total_reward, num_steps, cycle_times = run_single_episode(
             env=env, simulator=simulator, agent=agent, deterministic=False,
@@ -327,6 +338,8 @@ def main():
         update_every=args.update_every,
         run_name=args.run_name,
         resume=args.resume,
+        warmup_episodes=args.warmup_episodes,
+        warmup_reward_function=KLOnlyRewardFunction() if args.warmup_episodes > 0 else None,
     )
 
 

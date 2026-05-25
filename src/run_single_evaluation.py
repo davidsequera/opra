@@ -13,12 +13,13 @@ from evaluation.experiment import evaluate_policy_on_log
 LOG_PATH = "data/logs/AcademicCredentials/AcademicCredentials_train.csv"
 POLICY = "DRL-DRL"                  # RA-RR | DM-RR | DM-GR | DM-DRL | DRL-DRL
 K = 10
-CHECKPOINT = "data/training_models/AcademicCredentials_DDPS_p75_400_400_tp90_tk3_pe10_a100/checkpoints/best_model.pt"
-OUTPUT_DIR = "data/evaluation_results/single"
+CHECKPOINT = "data/training_models/AcademicCredentials_DDPS_p75_300_400_tp0.9_tk2_pe30_b100_full/checkpoints/final_model.pt"
+OUTPUT_DIR = "data/evaluation_results/AcademicCredentials_DDPS_p75_300_400_tp0.9_tk2_pe30_b100_full"
 LOG_NAME = "AcademicCredentials"
 TRAIN_PERCENTILE = 75
 SLA_PERCENTILES = (95, 90, 75, 50)
-MASKS = dict(top_k=3, top_p=0.95, p_min_end=0.1)
+MASKS = dict(top_k=2, top_p=0.7, p_min_end=0.3)
+#MASKS = dict(top_k=100, top_p=1, p_min_end=0)
 SEED = 0
 
 

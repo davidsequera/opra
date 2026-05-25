@@ -25,36 +25,64 @@ from datetime import datetime, timedelta
 
 from train import train_full_agent
 from train_resource_only import train_resource_only_agent
+from environment.core.reward import KLOnlyRewardFunction
 
 
 TRAINING_REGISTRY: dict[str, dict] = {
-    "AcademicCredentials": {
-        "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
-        "max_cases": 400,        # 398 rounded
-        "top_k": 2,
-        "top_p": 0.9,
-        "p_min_end": 0.3,
-    },
+    # "AcademicCredentials": {
+    #     "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
+    #     "max_cases": 400,        # 398 rounded
+    #     "top_k": 2,
+    #     "top_p": 0.9,
+    #     "p_min_end": 0.3,
+    # },
     "BPIC_2012": {
         "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
         "max_cases": 3000,       # 3030 rounded
-        "top_k": 2,
-        "top_p": 0.9,
-        "p_min_end": 0.3,
-    },
-    "BPIC_2017": {
-        "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
-        "max_cases": 7400,       # 7402 rounded
         "top_k": 3,
         "top_p": 0.9,
-        "p_min_end": 0.1,
+        "p_min_end": 0.2,
     },
+    # "BPIC_2017": {
+    #     "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
+    #     "max_cases": 7400,       # 7402 rounded
+    #     "top_k": 3,
+    #     "top_p": 0.9,
+    #     "p_min_end": 0.1,
+    # },
 }
 
+
+# TRAINING_REGISTRY: dict[str, dict] = {
+#     "AcademicCredentials": {
+#         "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
+#         "max_cases": 400,        # 398 rounded
+#         "top_k": 100,
+#         "top_p": 1,
+#         "p_min_end": 0,
+#     },
+#     "BPIC_2012": {
+#         "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
+#         "max_cases": 3000,       # 3030 rounded
+#         "top_k": 100,
+#         "top_p": 1,
+#         "p_min_end": 0,
+#     },
+#     "BPIC_2017": {
+#         "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
+#         "max_cases": 7400,       # 7402 rounded
+#         "top_k": 100,
+#         "top_p": 1,
+#         "p_min_end": 0,
+#     },
+# }
+
 VARIANTS = ("full", "resource_only")
+#VARIANTS = ["full"]
 DEFAULT_PERCENTILE = 75
 DEFAULT_EPISODES = 300
 DEFAULT_BETA = 0.0
+DEFAULT_WARMUP_EPISODES = 0
 
 
 def parse_args() -> argparse.Namespace:
@@ -64,6 +92,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--episodes", type=int, default=DEFAULT_EPISODES)
     parser.add_argument("--percentile", type=int, default=DEFAULT_PERCENTILE)
     parser.add_argument("--beta", type=float, default=DEFAULT_BETA, help="Regularization strength (full agent only).")
+    parser.add_argument("--warmup_episodes", type=int, default=DEFAULT_WARMUP_EPISODES, help="KL-only warmup episodes before main reward (full agent only, 0=off).")
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--save-every", type=int, default=10)
@@ -82,6 +111,7 @@ def build_run_name(log_name: str, log_cfg: dict, args: argparse.Namespace, varia
         f"_tk{log_cfg['top_k']}"
         f"_pe{int(round(log_cfg['p_min_end'] * 100))}"
         f"_b{int(round(args.beta * 100))}"
+        f"_wu{args.warmup_episodes}"
         f"_{variant}"
     )
 
@@ -106,6 +136,8 @@ def _train_one(log_cfg: dict, variant: str, run_name: str, args: argparse.Namesp
             seed=args.seed,
             save_every=args.save_every,
             run_name=run_name,
+            warmup_episodes=args.warmup_episodes,
+            warmup_reward_function=KLOnlyRewardFunction() if args.warmup_episodes > 0 else None,
         )
     if variant == "resource_only":
         return train_resource_only_agent(

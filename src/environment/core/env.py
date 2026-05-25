@@ -1,3 +1,4 @@
+import math
 import gymnasium as gym
 import numpy as np
 import pandas as pd
@@ -44,12 +45,20 @@ class BusinessProcessEnvironment(gym.Env):
             dtype=np.float32
         )
  
+    def set_agent_activity_probs(self, probs: list) -> None:
+        """Call once before env.step() with the agent's masked activity distribution (π)."""
+        self._pending_agent_activity_probs = probs
+
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
 
         self.simulator.reset(max_cases=self.max_cases)
         self.completed_cases = 0
-        self._case_activity_probs: dict = {}
+        self._case_log_prob_sum: dict = {}
+        self._case_num_decisions: dict = {}
+        self._case_agent_probs: dict = {}
+        self._case_routing_probs: dict = {}
+        self._pending_agent_activity_probs = None
 
         state, _ = self._advance_to_next_decision()
         return state, {}
@@ -65,10 +74,18 @@ class BusinessProcessEnvironment(gym.Env):
         # Capture the case receiving this decision before advancing
         current_case = self.simulator.get_case_needing_decision()
 
-        # Capture routing probability of the chosen activity before applying the decision
+        # Capture routing distribution before applying the decision
         probs_dict = self.simulator.setup.routing_policy.get_activity_probabilities(current_case)
         chosen_prob = float(probs_dict.get(activity_type, 0.0))
-        self._case_activity_probs[id(current_case)] = chosen_prob  # overwrite keeps latest decision
+        routing_probs = [float(probs_dict.get(act, 0.0)) for act in self.simulator.all_activities]
+        agent_probs = self._pending_agent_activity_probs
+        self._pending_agent_activity_probs = None
+
+        case_id = id(current_case)
+        self._case_log_prob_sum[case_id] = self._case_log_prob_sum.get(case_id, 0.0) + math.log(chosen_prob + 1e-8)
+        self._case_num_decisions[case_id] = self._case_num_decisions.get(case_id, 0) + 1
+        self._case_agent_probs[case_id] = agent_probs
+        self._case_routing_probs[case_id] = routing_probs
 
         # Apply decision to simulator (it will resume the process_case)
         self.simulator.apply_decision(activity_type, resource)
@@ -91,12 +108,18 @@ class BusinessProcessEnvironment(gym.Env):
                 end_time=now,
                 is_completed=False,
                 chosen_activity_prob=chosen_prob,
+                activity_probs_agent=agent_probs,
+                activity_probs_routing=routing_probs,
+                mean_routing_prob=1.0,
             )
             reward += self.reward_function.compute(ctx)
 
         # Terminal reward for all completed cases
         for case in completed:
-            case_prob = self._case_activity_probs.pop(id(case), 1.0)
+            cid = id(case)
+            log_sum = self._case_log_prob_sum.pop(cid, 0.0)
+            n = self._case_num_decisions.pop(cid, 1)
+            mean_routing_prob = math.exp(log_sum / max(n, 1))
             ctx = CaseRewardContext(
                 cycle_time=case.cycle_time,
                 sla_threshold=self.sla_threshold,
@@ -104,7 +127,10 @@ class BusinessProcessEnvironment(gym.Env):
                 start_time=case.start_time,
                 end_time=case.end_time,
                 is_completed=True,
-                chosen_activity_prob=case_prob,
+                chosen_activity_prob=1.0,
+                activity_probs_agent=self._case_agent_probs.pop(cid, None),
+                activity_probs_routing=self._case_routing_probs.pop(cid, None),
+                mean_routing_prob=mean_routing_prob,
             )
             reward += self.reward_function.compute(ctx)
             self.completed_cases += 1

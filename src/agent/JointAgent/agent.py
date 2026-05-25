@@ -49,7 +49,8 @@ class PPOAgent:
                 resource_idx = res_dist.sample()
 
             log_prob = act_dist.log_prob(activity_idx) + res_dist.log_prob(resource_idx)
-            
+            act_probs = act_dist.probs.squeeze(0).tolist()
+
             # Use forward to get value or calculate it from features
             features = self.policy_old.backbone(state_t)
             value = self.policy_old.value_head(features).squeeze(-1)
@@ -63,7 +64,7 @@ class PPOAgent:
         self.buffer.activity_masks.append(act_mask_t)
         self.buffer.resource_masks.append(res_mask_t)
 
-        return activity_idx.item(), resource_idx.item()
+        return activity_idx.item(), resource_idx.item(), act_probs
 
     def update(self):
         if not self.buffer.rewards:
