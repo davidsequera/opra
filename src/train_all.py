@@ -26,32 +26,32 @@ from datetime import datetime, timedelta
 from train import train_full_agent
 from train_resource_only import train_resource_only_agent
 
+## Flexibility experiment logs
+# TRAINING_REGISTRY: dict[str, dict] = {
+#     "AcademicCredentials": {
+#         "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
+#         "max_cases": 400,        # 398 rounded
+#         "top_k": 2,
+#         "top_p": 0.9,
+#         "p_min_end": 0.3,
+#     },
+#     "BPIC_2012": {
+#         "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
+#         "max_cases": 3000,       # 3030 rounded
+#         "top_k": 2,
+#         "top_p": 0.9,
+#         "p_min_end": 0.2,
+#     },
+#     "BPIC_2017": {
+#         "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
+#         "max_cases": 7400,       # 7402 rounded
+#         "top_k": 3,
+#         "top_p": 0.9,
+#         "p_min_end": 0.1,
+#     },
+# }
 
-TRAINING_REGISTRY: dict[str, dict] = {
-    # "AcademicCredentials": {
-    #     "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
-    #     "max_cases": 400,        # 398 rounded
-    #     "top_k": 2,
-    #     "top_p": 0.9,
-    #     "p_min_end": 0.3,
-    # },
-    "BPIC_2012": {
-        "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
-        "max_cases": 3000,       # 3030 rounded
-        "top_k": 2,
-        "top_p": 0.9,
-        "p_min_end": 0.2,
-    },
-    # "BPIC_2017": {
-    #     "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
-    #     "max_cases": 7400,       # 7402 rounded
-    #     "top_k": 3,
-    #     "top_p": 0.9,
-    #     "p_min_end": 0.1,
-    # },
-}
-
-
+## No Flexibility experiment
 # TRAINING_REGISTRY: dict[str, dict] = {
 #     "AcademicCredentials": {
 #         "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
@@ -76,17 +76,77 @@ TRAINING_REGISTRY: dict[str, dict] = {
 #     },
 # }
 
-VARIANTS = ("full", "resource_only")
-#VARIANTS = ["full"]
+
+
+## Flexibility experiment logs with KL conformance regularization
+TRAINING_REGISTRY: dict[str, dict] = {
+    "AcademicCredentials": {
+        "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
+        "max_cases": 400,        # 398 rounded
+        "top_k": 2,
+        "top_p": 0.9,
+        "p_min_end": 0.3,
+        "kl_conformance_coef": 0.08, # Add KL conformance regularization for the full agent on this log
+    },
+    "BPIC_2012": {
+        "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
+        "max_cases": 3000,       # 3030 rounded
+        "top_k": 2,
+        "top_p": 0.9,
+        "p_min_end": 0.2,
+        "kl_conformance_coef": 0.01, # Add KL conformance regularization for the full agent on this log
+    },
+    "BPIC_2017": {
+        "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
+        "max_cases": 7400,       # 7402 rounded
+        "top_k": 3,
+        "top_p": 0.9,
+        "p_min_end": 0.1,
+        "kl_conformance_coef": 0.05, # Add KL conformance regularization for the full agent on this log
+    },
+}
+
+
+## No Flexibility experiment logs with KL conformance regularization
+# TRAINING_REGISTRY: dict[str, dict] = {
+#     "AcademicCredentials": {
+#         "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
+#         "max_cases": 400,        # 398 rounded
+#         "top_k": 100,
+#         "top_p": 1,
+#         "p_min_end": 0,
+#         "kl_conformance_coef": 0.08, # Add KL conformance regularization for the full agent on this log
+#     },
+#     "BPIC_2012": {
+#         "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
+#         "max_cases": 3000,       # 3030 rounded
+#         "top_k": 100,
+#         "top_p": 1,
+#         "p_min_end": 0,
+#         "kl_conformance_coef": 0.01, # Add KL conformance regularization for the full agent on this log
+#     },
+#     "BPIC_2017": {
+#         "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
+#         "max_cases": 7400,       # 7402 rounded
+#         "top_k": 100,
+#         "top_p": 1,
+#         "p_min_end": 0,
+#         "kl_conformance_coef": 0.05, # Add KL conformance regularization for the full agent on this log
+#     },
+# }
+
+
+
+#VARIANTS = ("full", "resource_only")
+VARIANTS = ["full"]
 DEFAULT_PERCENTILE = 75
-DEFAULT_EPISODES = 300
+DEFAULT_EPISODES = 250
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train all PPO agents per log")
     parser.add_argument("--logs", nargs="+", default=list(TRAINING_REGISTRY.keys()))
     parser.add_argument("--variants", nargs="+", default=list(VARIANTS), choices=VARIANTS)
     parser.add_argument("--episodes", type=int, default=DEFAULT_EPISODES)
     parser.add_argument("--percentile", type=int, default=DEFAULT_PERCENTILE)
-    parser.add_argument("--kl_conformance_coef", type=float, default=0.0, help="KL conformance auxiliary loss weight (0=off, full agent only).")
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--save-every", type=int, default=10)
@@ -104,7 +164,7 @@ def build_run_name(log_name: str, log_cfg: dict, args: argparse.Namespace, varia
         f"_tp{int(round(log_cfg['top_p'] * 100))}"
         f"_tk{log_cfg['top_k']}"
         f"_pe{int(round(log_cfg['p_min_end'] * 100))}"
-        f"_kl{int(round(args.kl_conformance_coef * 100))}"
+        f"_kl{int(round(log_cfg['kl_conformance_coef'] * 100))}"
         f"_{variant}"
     )
 
@@ -128,7 +188,7 @@ def _train_one(log_cfg: dict, variant: str, run_name: str, args: argparse.Namesp
             seed=args.seed,
             save_every=args.save_every,
             run_name=run_name,
-            kl_conformance_coef=args.kl_conformance_coef,
+            kl_conformance_coef=log_cfg["kl_conformance_coef"],
         )
     if variant == "resource_only":
         return train_resource_only_agent(
