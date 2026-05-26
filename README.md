@@ -102,7 +102,7 @@ opra/
     │   ├── core/
     │   │   ├── env.py               # Gymnasium wrapper (BusinessProcessEnvironment)
     │   │   ├── mask.py              # Nucleus / top-k masking
-    │   │   └── reward.py            # SLA / Regularized / Binary reward functions
+    │   │   └── reward.py            # SLARewardFunction / BinaryRewardFunction
     │   ├── simulator/
     │   │   ├── core/                # SimulatorEngine, SimulationSetup
     │   │   ├── implementations/     # Empirical, parametric, distribution impls
@@ -189,7 +189,7 @@ python src/train.py \
     --top_k 2 \
     --top_p 0.9 \
     --p_min_end 0.3 \
-    --beta 0.0 \
+    --kl_conformance_coef 0.0 \
     --run_name AcademicCredentials_run01
 ```
 
@@ -204,7 +204,7 @@ Key arguments:
 | `--top_k` | 2 | Max activities kept by nucleus filter |
 | `--top_p` | 0.9 | Cumulative probability threshold for nucleus filter |
 | `--p_min_end` | 0.3 | Minimum probability to treat an activity as a valid end |
-| `--beta` | 0.0 | Regularization weight (0 = plain SLA reward) |
+| `--kl_conformance_coef` | 0.0 | KL conformance auxiliary loss weight (0 = disabled) |
 | `--run_name` | auto | Identifier for the run; determines checkpoint folder |
 
 Checkpoints and metrics land in:
@@ -236,17 +236,30 @@ python src/train_resource_only.py \
     --run_name AcademicCredentials_run01_resource_only
 ```
 
-Accepts the same arguments as `train.py` except `--beta` (always uses plain SLA reward).
+Accepts the same arguments as `train.py` except `--kl_conformance_coef` (always uses plain SLA reward with no auxiliary loss).
 
 ### 4. Train All Registered Logs
 
-Runs both variants (DRL-DRL and DM-DRL) for every log registered in `TRAINING_REGISTRY` inside `train_all.py`, in-process:
+Trains every log registered in `TRAINING_REGISTRY` inside `train_all.py`, in-process:
 
 ```bash
 python src/train_all.py
+# train only one log
+python src/train_all.py --logs AcademicCredentials
+# dry-run to see planned runs without executing
+python src/train_all.py --dry-run
 ```
 
-Prints `[N/total]` progress with ETA between runs. Skips combinations whose checkpoints already exist.
+The registry has four commented/active blocks — one active at a time — covering two experimental conditions × two regularization settings:
+
+| Condition | Mask | KL reg |
+|---|---|---|
+| Flexibility — no KL | nucleus (top-k/p) | 0 |
+| Flexibility — with KL | nucleus (top-k/p) | per-log coef |
+| No Flexibility — no KL | top_k=100, top_p=1 | 0 |
+| **No Flexibility — with KL** *(active)* | top_k=100, top_p=1 | per-log coef |
+
+Run names follow `{LogName}_DDPS_p{pctile}_{episodes}_{max_cases}_tp{top_p*100}_tk{top_k}_pe{p_min_end*100}_kl{kl*100}_{variant}`. Prints `[N/total]` progress with ETA. Use `--skip-existing` to skip checkpoints that already exist.
 
 ### 5. Evaluate a Single (Log, Policy) Combination
 
@@ -264,9 +277,22 @@ Runs all five evaluation policies across all registered logs and writes comparis
 
 ```bash
 python src/run_matrix_evaluation.py
+# specify output directory and number of simulation runs
+python src/run_matrix_evaluation.py --output-dir data/evaluation_results/flex_kl0 --K 10
+# re-derive metrics from cached simulated logs without re-running
+python src/run_matrix_evaluation.py --resume
 ```
 
-Add `--resume` to re-derive metrics from previously-exported simulated logs without re-simulating. Combinations whose checkpoints don't exist are skipped and reported at the end.
+`LOG_REGISTRY` in this script mirrors the four experimental conditions in `train_all.py` — comment/uncomment one block to switch. The active block must reference checkpoints produced by the matching `TRAINING_REGISTRY` block. Combinations whose checkpoints don't exist are skipped and reported at the end.
+
+| Registry | Mask | KL reg | Default output dir |
+|---|---|---|---|
+| Flexibility — no KL | nucleus (top-k/p) | 0 | `flex_kl0` |
+| Flexibility — with KL | nucleus (top-k/p) | per-log | `flex_kl_reg` |
+| No Flexibility — no KL | top_k=100, top_p=1 | 0 | `noflex_kl0` |
+| **No Flexibility — with KL** *(active)* | top_k=100, top_p=1 | per-log | `noflex_kl_reg` |
+
+> KL-regularized registries omit `checkpoint_resource_only` — DM-DRL is skipped automatically.
 
 **Output** (under `data/evaluation_results/`):
 

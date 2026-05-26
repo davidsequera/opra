@@ -210,6 +210,17 @@ src/evaluation/
 
 **Matrix.** `run_matrix_evaluation.py` loops `(log × policy)`, sharing one `PolicyEvaluator` per log so reference compliance baselines for CIR are identical across policies. Combinations whose checkpoints don't exist are skipped (logged at the end). `--resume` re-derives metrics from previously-exported simulated logs without re-simulating.
 
+`LOG_REGISTRY` in `run_matrix_evaluation.py` mirrors the experimental conditions in `train_all.py` — four commented/active blocks, one active at a time:
+
+| Registry | Mask | KL reg | Episodes |
+|---|---|---|---|
+| Flexibility — no KL | top-k/p nucleus | 0 | 300 |
+| Flexibility — with KL | top-k/p nucleus | per-log | 250 |
+| No Flexibility — no KL | top_k=100, top_p=1 | 0 | 300 |
+| **No Flexibility — with KL** *(active)* | top_k=100, top_p=1 | per-log | 250 |
+
+Checkpoint names in `LOG_REGISTRY` must match the run name format produced by `train_all.py` exactly. KL-regularized registries omit `checkpoint_resource_only` (no resource-only models were trained with KL); DM-DRL is skipped automatically with a `[skip]` message for those configs.
+
 **Three CSV shapes**, all from the same in-memory record list:
 - `runs_long.csv` — `log, policy, run_id, metric, value` for melt/groupby plotting.
 - `runs_wide.csv` — one row per `(log, policy, run_id)`, one column per metric.
@@ -248,6 +259,15 @@ The "decision model" (DM) for DM-RR / DM-DRL is the empirical `ProbabilisticRout
 - **`src/train.py::train_full_agent(...)`** — full DRL-DRL PPO training. CLI `main()` is a thin wrapper around the function. Always uses `SLARewardFunction()`. Accepts `--kl_conformance_coef` (default `0.0`) to enable the KL conformance auxiliary loss in the PPO update.
 - **`src/train_resource_only.py::train_resource_only_agent(...)`** — analog for `PPOResourceOnlyAgent`. Activity at each decision is sampled from `EmpiricalDMActivitySelector` so the agent only learns to optimize resource allocation under a fixed control-flow distribution. Always uses plain `SLARewardFunction()`.
 - **`src/train_all.py`** — orchestrator. Imports both training functions and calls them in-process (no subprocess) for every `(log, variant)` combo in `TRAINING_REGISTRY`. Per-log `kl_conformance_coef` can be set directly in the registry entry. Prints `[N/total]` progress with ETA between runs. Run names follow `{LogName}_DDPS_p{pctile}_{episodes}_{max_cases}_tp{top_p*100}_tk{top_k}_pe{p_min_end*100}_kl{kl_conformance_coef*100}_{variant}`. The matrix runner's `LOG_REGISTRY` references checkpoints under those exact names.
+
+  `TRAINING_REGISTRY` has four commented/active blocks (one active at a time) matching the four experimental conditions:
+
+  | Registry | Mask | KL reg |
+  |---|---|---|
+  | Flexibility — no KL | top-k/p nucleus | 0 |
+  | Flexibility — with KL | top-k/p nucleus | per-log |
+  | No Flexibility — no KL | top_k=100, top_p=1 | 0 |
+  | **No Flexibility — with KL** *(active)* | top_k=100, top_p=1 | per-log |
 
 ## Known issues / stubs
 
