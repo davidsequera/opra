@@ -34,67 +34,104 @@ def _ckpt(run_name: str) -> str:
     return f"data/training_models/{run_name}/checkpoints/best_model.pt"
 
 
+## Flexibility experiment — no KL regularization (300 episodes)
 # LOG_REGISTRY: dict[str, dict] = {
 #     "AcademicCredentials": {
 #         "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
-#         "checkpoint_full": _ckpt("AcademicCredentials_DDPS_p75_300_400_tp90_tk2_pe30_b0_full"),
-#         "checkpoint_resource_only": _ckpt("AcademicCredentials_DDPS_p75_300_400_tp90_tk2_pe30_b0_resource_only"),
+#         "checkpoint_full": _ckpt("AcademicCredentials_DDPS_p75_300_400_tp90_tk2_pe30_kl0_full"),
+#         "checkpoint_resource_only": _ckpt("AcademicCredentials_DDPS_p75_300_400_tp90_tk2_pe30_kl0_resource_only"),
 #         "masks": dict(top_k=2, top_p=0.9, p_min_end=0.3),
 #         "train_percentile": 75,
 #     },
 #     "BPIC_2012": {
 #         "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
-#         "checkpoint_full": _ckpt("BPIC_2012_DDPS_p75_300_3000_tp90_tk2_pe30_b0_full"),
-#         "checkpoint_resource_only": _ckpt("BPIC_2012_DDPS_p75_300_3000_tp90_tk2_pe30_b0_resource_only"),
+#         "checkpoint_full": _ckpt("BPIC_2012_DDPS_p75_300_3000_tp90_tk2_pe30_kl0_full"),
+#         "checkpoint_resource_only": _ckpt("BPIC_2012_DDPS_p75_300_3000_tp90_tk2_pe30_kl0_resource_only"),
 #         "masks": dict(top_k=2, top_p=0.9, p_min_end=0.3),
 #         "train_percentile": 75,
 #     },
 #     "BPIC_2017": {
 #         "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
-#         "checkpoint_full": _ckpt("BPIC_2017_DDPS_p75_300_7400_tp90_tk3_pe10_b0_full"),
-#         "checkpoint_resource_only": _ckpt("BPIC_2017_DDPS_p75_300_7400_tp90_tk3_pe10_b0_resource_only"),
+#         "checkpoint_full": _ckpt("BPIC_2017_DDPS_p75_300_7400_tp90_tk3_pe10_kl0_full"),
+#         "checkpoint_resource_only": _ckpt("BPIC_2017_DDPS_p75_300_7400_tp90_tk3_pe10_kl0_resource_only"),
 #         "masks": dict(top_k=3, top_p=0.9, p_min_end=0.1),
 #         "train_percentile": 75,
 #     },
 # }
 
+# Flexibility experiment — with KL regularization (250 episodes)
+LOG_REGISTRY: dict[str, dict] = {
+    "AcademicCredentials": {
+        "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
+        "checkpoint_full": _ckpt("AcademicCredentials_DDPS_p75_250_400_tp90_tk2_pe30_kl8_full"),
+        "masks": dict(top_k=2, top_p=0.9, p_min_end=0.3),
+        "train_percentile": 75,
+    },
+    "BPIC_2012": {
+        "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
+        "checkpoint_full": _ckpt("BPIC_2012_DDPS_p75_250_3000_tp90_tk2_pe20_kl1_full"),
+        "masks": dict(top_k=2, top_p=0.9, p_min_end=0.2),
+        "train_percentile": 75,
+    },
+    "BPIC_2017": {
+        "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
+        "checkpoint_full": _ckpt("BPIC_2017_DDPS_p75_250_7400_tp90_tk3_pe10_kl5_full"),
+        "masks": dict(top_k=3, top_p=0.9, p_min_end=0.1),
+        "train_percentile": 75,
+    },
+}
+
+## No Flexibility experiment — no KL regularization (300 episodes)
 # LOG_REGISTRY: dict[str, dict] = {
 #     "AcademicCredentials": {
 #         "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
-#         "checkpoint_full": _ckpt("AcademicCredentials_DDPS_p75_300_400_tp100_tk100_pe0_b0_full"),
-#         "checkpoint_resource_only": _ckpt("AcademicCredentials_DDPS_p75_300_400_tp100_tk100_pe0_b0_resource_only"),
+#         "checkpoint_full": _ckpt("AcademicCredentials_DDPS_p75_300_400_tp100_tk100_pe0_kl0_full"),
+#         "checkpoint_resource_only": _ckpt("AcademicCredentials_DDPS_p75_300_400_tp90_tk2_pe30_kl0_resource_only"),
 #         "masks": dict(top_k=100, top_p=1, p_min_end=0),
 #         "train_percentile": 75,
 #     },
 #     "BPIC_2012": {
 #         "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
-#         "checkpoint_full": _ckpt("BPIC_2012_DDPS_p75_300_3000_tp100_tk100_pe0_b0_full"),
-#         "checkpoint_resource_only": _ckpt("BPIC_2012_DDPS_p75_300_3000_tp100_tk100_pe0_b0_resource_only"),
+#         "checkpoint_full": _ckpt("BPIC_2012_DDPS_p75_300_3000_tp100_tk100_pe0_kl0_full"),
+#         "checkpoint_resource_only": _ckpt("BPIC_2012_DDPS_p75_300_3000_tp90_tk2_pe30_kl0_resource_only"),
 #         "masks": dict(top_k=100, top_p=1, p_min_end=0),
 #         "train_percentile": 75,
 #     },
 #     "BPIC_2017": {
 #         "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
-#         "checkpoint_full": _ckpt("BPIC_2017_DDPS_p75_300_7400_tp100_tk100_pe0_b0_full"),
-#         "checkpoint_resource_only": _ckpt("BPIC_2017_DDPS_p75_300_7400_tp100_tk100_pe0_b0_resource_only"),
+#         "checkpoint_full": _ckpt("BPIC_2017_DDPS_p75_300_7400_tp100_tk100_pe0_kl0_full"),
+#         "checkpoint_resource_only": _ckpt("BPIC_2017_DDPS_p75_300_7400_tp90_tk3_pe10_kl0_resource_only"),
 #         "masks": dict(top_k=100, top_p=1, p_min_end=0),
 #         "train_percentile": 75,
 #     },
 # }
 
-LOG_REGISTRY: dict[str, dict] = {
-    "BPIC_2012": {
-        "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
-        "checkpoint_full": _ckpt("BPIC_2012_DDPS_p75_300_3000_tp90_tk3_pe20_b0_full"),
-        "checkpoint_resource_only": _ckpt("BPIC_2012_DDPS_p75_300_3000_tp90_tk3_pe20_b0_resource_only"),
-        "masks": dict(top_k=3, top_p=0.9, p_min_end=0.2),
-        "train_percentile": 75,
-    }
-}
+## No Flexibility experiment — with KL regularization (250 episodes)
+# LOG_REGISTRY: dict[str, dict] = {
+#     "AcademicCredentials": {
+#         "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
+#         "checkpoint_full": _ckpt("AcademicCredentials_DDPS_p75_250_400_tp100_tk100_pe0_kl8_full"),
+#         "masks": dict(top_k=100, top_p=1, p_min_end=0),
+#         "train_percentile": 75,
+#     },
+#     "BPIC_2012": {
+#         "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
+#         "checkpoint_full": _ckpt("BPIC_2012_DDPS_p75_250_3000_tp100_tk100_pe0_kl1_full"),
+#         "masks": dict(top_k=100, top_p=1, p_min_end=0),
+#         "train_percentile": 75,
+#     },
+#     "BPIC_2017": {
+#         "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
+#         "checkpoint_full": _ckpt("BPIC_2017_DDPS_p75_250_7400_tp100_tk100_pe0_kl5_full"),
+#         "masks": dict(top_k=100, top_p=1, p_min_end=0),
+#         "train_percentile": 75,
+#     },
+# }
+
 
 
 #ALL_POLICIES = ("RA-RR", "DM-RR", "DM-GR", "DM-DRL", "DRL-DRL")
-ALL_POLICIES = ["DRL-DRL"]
+ALL_POLICIES = ["DRL-DRL"]   
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="OPRA matrix evaluation")
@@ -102,7 +139,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--policies", nargs="+", default=list(ALL_POLICIES))
     parser.add_argument("--K", type=int, default=10)
     parser.add_argument("--sla-percentiles", type=int, nargs="+", default=[95, 90, 75, 50])
-    parser.add_argument("--output-dir", default="data/evaluation_results/adhoc_matrix_bpic12")
+    parser.add_argument("--output-dir", default="data/evaluation_results/flex_kl_reg")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--resume",

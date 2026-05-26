@@ -28,8 +28,8 @@ python src/simulate.py
 # Train the full DRL-DRL agent
 python src/train.py --log_path data/logs/AcademicCredentials/AcademicCredentials_train.csv \
     --episodes 300 --max_cases 400 --percentile 75 \
-    --top_k 2 --top_p 0.9 --p_min_end 0.3 --beta 0.0 \
-    --run_name AcademicCredentials_DDPS_p75_300_400_tp90_tk2_pe30_a0_full
+    --top_k 2 --top_p 0.9 --p_min_end 0.3 --kl_conformance_coef 0.0 \
+    --run_name AcademicCredentials_DDPS_p75_300_400_tp90_tk2_pe30_full
 
 # Train the resource-only DM-DRL agent
 python src/train_resource_only.py --log_path data/logs/AcademicCredentials/AcademicCredentials_train.csv \
@@ -101,15 +101,16 @@ SimulatorEngine (RL mode)
 **`src/environment/core/reward.py` — Reward Functions**
 - `RewardFunction` (ABC): base class for reward computation.
 - `CaseRewardContext`: encapsulates case metrics (cycle_time, sla_threshold, num_events, is_completed, chosen_activity_prob).
-- `SLARewardFunction` (H=1.0): two-part reward with intermediate and terminal signals. 
-  - Intermediate (case not yet completed): `r = ±K/10 × (ct/T)` directional signal based on SLA proximity.
-  - Terminal (case completed): `r = +H` if `ct < T`, else `-H`.
-- `RegularizedSLARewardFunction` (H=1.0, beta=0.0): extends `SLARewardFunction` with distributional regularization. Positive rewards are scaled by `α(Prob(A) − 1) + 1`, where `Prob(A)` is the as-is routing probability of the chosen activity. This encourages the agent to stay close to the empirical routing distribution.
+- `SLARewardFunction` (H=1.0): two-part reward with intermediate and terminal signals.
+  - Intermediate (case not yet completed): `(H/1000) × (1 − ct/T)` when on track, `−(H/100) × (ct/T)` when overdue.
+  - Terminal (case completed): `+H` if `ct < T`, else `−H`.
 - `BinaryRewardFunction`: simple baseline (`+1` if SLA met, `0` otherwise).
 
 **`src/agent/JointAgent/agent.py` — `PPOAgent` / `PPOPolicy`**
 - Full DRL-DRL agent. Hierarchical action selection: activity head first, then resource head conditioned on the chosen activity via embedding.
 - Activity and resource masks applied as `-1e9` logit fill before sampling.
+- `PPOAgent(kl_conformance_coef=0.0)`: optional KL conformance auxiliary loss added to the PPO objective. Penalises divergence of the agent's activity distribution π(a|s) from the empirical routing distribution P(a|a_last) extracted from the state vector (Block B, first `|A|` elements). Applied over unmasked activities only. Set to `0.0` to disable (default).
+- `PPOPolicy.evaluate()` returns `(log_prob, entropy, value, activity_dist.probs)` — the fourth element is used by the KL conformance loss in `update()`.
 
 **`src/agent/ResourcesOnlyAgent/resource_only_agent.py` — `PPOResourceOnlyAgent` / `PPOResourceOnlyPolicy`**
 - DM-DRL backbone: same architecture minus the activity head. Activity is supplied externally each step (during training, sampled from `EmpiricalDMActivitySelector`).
@@ -178,11 +179,11 @@ The thesis targets a two-part reward encouraging SLA compliance:
 
 **Current implementations** (in `src/environment/core/reward.py`):
 
-1. **`SLARewardFunction`** — the primary implementation, which replaces the prior simplified version. For intermediate states: linear scaling `(H/1000) × (1 − ct/T)` when on track, or `−(H/10) × (ct/T)` when overdue. Matches the thesis definition's intent.
+1. **`SLARewardFunction`** — the primary implementation. For intermediate states: linear scaling `(H/1000) × (1 − ct/T)` when on track, or `−(H/100) × (ct/T)` when overdue. Terminal: `+H` / `−H`.
 
-2. **`RegularizedSLARewardFunction`** — extends `SLARewardFunction` with an optional distributional regularization term (`beta` parameter). Scales positive rewards by the empirical routing probability of the chosen activity, encouraging the agent to stay near the learned process distribution while rewarding SLA improvements. Set `beta=0` to disable regularization (default behavior = `SLARewardFunction`).
+2. **`BinaryRewardFunction`** — legacy simplified version (kept for baselines and ablations).
 
-3. **`BinaryRewardFunction`** — legacy simplified version (kept for baselines and ablations).
+**KL conformance regularization** is applied at the PPO loss level (not the reward level) via `PPOAgent(kl_conformance_coef=...)`. See the agent section above.
 
 
 ### Evaluation framework
@@ -244,13 +245,12 @@ The "decision model" (DM) for DM-RR / DM-DRL is the empirical `ProbabilisticRout
 
 ### Training scripts
 
-- **`src/train.py::train_full_agent(...)`** — full DRL-DRL PPO training. CLI `main()` is a thin wrapper around the function. Uses `SLARewardFunction()` when `beta == 0`, `RegularizedSLARewardFunction(beta=...)` otherwise.
-- **`src/train_resource_only.py::train_resource_only_agent(...)`** — analog for `PPOResourceOnlyAgent`. Activity at each decision is sampled from `EmpiricalDMActivitySelector` so the agent only learns to optimize resource allocation under a fixed control-flow distribution. Always uses plain `SLARewardFunction()` (no regularization).
-- **`src/train_all.py`** — orchestrator. Imports both training functions and calls them in-process (no subprocess) for every `(log, variant)` combo in `TRAINING_REGISTRY`. Prints `[N/total]` progress with ETA between runs. Run names follow `{LogName}_DDPS_p{pctile}_{episodes}_{max_cases}_tp{top_p*100}_tk{top_k}_pe{p_min_end*100}_a{beta*100}_{variant}`. The matrix runner's `LOG_REGISTRY` references checkpoints under those exact names.
+- **`src/train.py::train_full_agent(...)`** — full DRL-DRL PPO training. CLI `main()` is a thin wrapper around the function. Always uses `SLARewardFunction()`. Accepts `--kl_conformance_coef` (default `0.0`) to enable the KL conformance auxiliary loss in the PPO update.
+- **`src/train_resource_only.py::train_resource_only_agent(...)`** — analog for `PPOResourceOnlyAgent`. Activity at each decision is sampled from `EmpiricalDMActivitySelector` so the agent only learns to optimize resource allocation under a fixed control-flow distribution. Always uses plain `SLARewardFunction()`.
+- **`src/train_all.py`** — orchestrator. Imports both training functions and calls them in-process (no subprocess) for every `(log, variant)` combo in `TRAINING_REGISTRY`. Per-log `kl_conformance_coef` can be set directly in the registry entry. Prints `[N/total]` progress with ETA between runs. Run names follow `{LogName}_DDPS_p{pctile}_{episodes}_{max_cases}_tp{top_p*100}_tk{top_k}_pe{p_min_end*100}_kl{kl_conformance_coef*100}_{variant}`. The matrix runner's `LOG_REGISTRY` references checkpoints under those exact names.
 
 ## Known issues / stubs
 
 - `ResourceAllocationPolicy` and `StoppingPolicy` are planned but not fully implemented.
 - The engine guards against infinite loops via `max_cases`, but zero-duration activities can still cause issues.
-- `RegularizedSLARewardFunction` contains debug print statements (line 136 of `reward.py`) that should be removed in production use.
 - The "decision model" used by DM-RR / DM-DRL is the empirical 1st-order Markov routing policy, not an LSTM. Replacing it with a learned next-activity model would be a `RoutingPolicy` subclass plugged into the same `EmpiricalDMActivitySelector` slot.
