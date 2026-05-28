@@ -143,8 +143,8 @@ class BusinessProcessEnvironment(gym.Env):
 
         Block C — Temporal Features  (2 features)
         --------------------------------------------------------
-          · hour_of_day  : (now % 86400) / 86400
-          · day_of_week  : ((now // 86400) % 7) / 6
+          · hour_of_day  : seconds_since_midnight / 86400  (from absolute timestamp)
+          · day_of_week  : dt.dayofweek / 6                (from absolute timestamp)
         """
         sim_state = self.simulator.state()
         now = sim_state["internal_time"]
@@ -210,9 +210,10 @@ class BusinessProcessEnvironment(gym.Env):
             case_features = branching_probs + [last_act_enc, trace_length_norm, sla_urgency]
 
         # ── Block C: Temporal Features ───────────────────────────────────────────
+        dt = sim_state["current_absolute_time"]
         time_features = [
-            (now % 86400) / 86400.0,           # hour_of_day
-            ((now // 86400) % 7) / 6.0,        # day_of_week
+            (dt.hour * 3600 + dt.minute * 60 + dt.second) / 86400.0,  # hour_of_day
+            dt.dayofweek / 6.0,                                         # day_of_week
         ]
 
         return np.clip(

@@ -26,30 +26,31 @@ from datetime import datetime, timedelta
 from train import train_full_agent
 from train_resource_only import train_resource_only_agent
 
-## Flexibility experiment logs
-# TRAINING_REGISTRY: dict[str, dict] = {
-#     "AcademicCredentials": {
-#         "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
-#         "max_cases": 400,        # 398 rounded
-#         "top_k": 2,
-#         "top_p": 0.9,
-#         "p_min_end": 0.3,
-#     },
-#     "BPIC_2012": {
-#         "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
-#         "max_cases": 3000,       # 3030 rounded
-#         "top_k": 2,
-#         "top_p": 0.9,
-#         "p_min_end": 0.2,
-#     },
-#     "BPIC_2017": {
-#         "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
-#         "max_cases": 7400,       # 7402 rounded
-#         "top_k": 3,
-#         "top_p": 0.9,
-#         "p_min_end": 0.1,
-#     },
-# }
+# Flexibility experiment logs
+TRAINING_REGISTRY: dict[str, dict] = {
+    "AcademicCredentials": {
+        "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
+        "max_cases": 500,        # 398 rounded
+        "top_k": 2,
+        "top_p": 0.9,
+        "p_min_end": 0.3,
+        "kl_conformance_coef": 0, # Add KL conformance regularization for the full agent on this log
+    },
+    # "BPIC_2012": {
+    #     "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
+    #     "max_cases": 3000,       # 3030 rounded
+    #     "top_k": 2,
+    #     "top_p": 0.9,
+    #     "p_min_end": 0.2,
+    # },
+    # "BPIC_2017": {
+    #     "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
+    #     "max_cases": 7400,       # 7402 rounded
+    #     "top_k": 3,
+    #     "top_p": 0.9,
+    #     "p_min_end": 0.1,
+    # },
+}
 
 ## No Flexibility experiment
 # TRAINING_REGISTRY: dict[str, dict] = {
@@ -107,40 +108,40 @@ from train_resource_only import train_resource_only_agent
 # }
 
 
-## No Flexibility experiment logs with KL conformance regularization
-TRAINING_REGISTRY: dict[str, dict] = {
-    "AcademicCredentials": {
-        "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
-        "max_cases": 400,        # 398 rounded
-        "top_k": 100,
-        "top_p": 1,
-        "p_min_end": 0,
-        "kl_conformance_coef": 0.08, # Add KL conformance regularization for the full agent on this log
-    },
-    "BPIC_2012": {
-        "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
-        "max_cases": 3000,       # 3030 rounded
-        "top_k": 100,
-        "top_p": 1,
-        "p_min_end": 0,
-        "kl_conformance_coef": 0.01, # Add KL conformance regularization for the full agent on this log
-    },
-    "BPIC_2017": {
-        "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
-        "max_cases": 7400,       # 7402 rounded
-        "top_k": 100,
-        "top_p": 1,
-        "p_min_end": 0,
-        "kl_conformance_coef": 0.05, # Add KL conformance regularization for the full agent on this log
-    },
-}
+# ## No Flexibility experiment logs with KL conformance regularization
+# TRAINING_REGISTRY: dict[str, dict] = {
+#     "AcademicCredentials": {
+#         "path": "data/logs/AcademicCredentials/AcademicCredentials_train.csv",
+#         "max_cases": 400,        # 398 rounded
+#         "top_k": 100,
+#         "top_p": 1,
+#         "p_min_end": 0,
+#         "kl_conformance_coef": 0.08, # Add KL conformance regularization for the full agent on this log
+#     },
+#     "BPIC_2012": {
+#         "path": "data/logs/BPIC_2012/BPIC_2012_train.csv",
+#         "max_cases": 3000,       # 3030 rounded
+#         "top_k": 100,
+#         "top_p": 1,
+#         "p_min_end": 0,
+#         "kl_conformance_coef": 0.01, # Add KL conformance regularization for the full agent on this log
+#     },
+#     "BPIC_2017": {
+#         "path": "data/logs/BPIC_2017/BPIC_2017_train.csv",
+#         "max_cases": 7400,       # 7402 rounded
+#         "top_k": 100,
+#         "top_p": 1,
+#         "p_min_end": 0,
+#         "kl_conformance_coef": 0.05, # Add KL conformance regularization for the full agent on this log
+#     },
+# }
 
 
 
 #VARIANTS = ("full", "resource_only")
 VARIANTS = ["full"]
 DEFAULT_PERCENTILE = 75
-DEFAULT_EPISODES = 250
+DEFAULT_EPISODES = 100
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train all PPO agents per log")
     parser.add_argument("--logs", nargs="+", default=list(TRAINING_REGISTRY.keys()))

@@ -160,12 +160,15 @@ class SimulatorEngine:
             a_str = str(req.get("activity", "PENDING"))
             act_wait[a_str] = act_wait.get(a_str, 0) + 1
 
+        current_absolute = self.start_timestamp + pd.to_timedelta(self.env.now, unit=self.setup.time_unit)
+
         return {
             "resource_occupancy": res_occ,
             "resource_current_activity": dict(self.resource_current_activity),
             "activities_waiting": act_wait,
             "total_waiting": len(self.waiting_requests) + len(self.pending_decisions),
             "internal_time": self.env.now,
+            "current_absolute_time": current_absolute,
         }
 
     def case_generator(self, max_cases=None):
