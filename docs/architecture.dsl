@@ -5,7 +5,7 @@ workspace {
 
         process_analyst = person "Process Analyst" "Designs, runs, and evaluates business process simulations."
 
-        opra_system = softwareSystem "OPRA - Process Simulation & RL Optimization" {
+        opra_system = softwareSystem "Process Simulation & RL Optimization" {
             description "Business process simulation and optimization System. With the use reinforcement learning agents to predict activity and resource pair with Top-K / Top-P constrained action spaces."
 
 
