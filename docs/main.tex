@@ -68,27 +68,10 @@ for the degree of}\\[0.4cm]
 {\small Bogot\'a D.C., 2026}
 
 \end{titlepage}
+
 % ===================================================================
 % END COVER PAGE
 % ===================================================================
-
- 
-\title{Flexible Policy Learning for Joint Activity Routing and Resource Allocation in Business Process Simulation}
- 
-\author{
-  \IEEEauthorblockN{David Sequera}
-  \IEEEauthorblockA{
-    d.sequera@uniandes.edu.co\\
-    Advisor: Oscar Fernando Gonz\'alez Rojas \\
-    Universidad de los Andes, CSW
-  }
-}
- 
-\markboth{Flexible Policy Learning for Joint Activity Routing and Resource Allocation in Business Process Simulation
-}%
-{Sequera \MakeLowercase{\textit{et al.}}: Thesis Document}
- 
-\maketitle
 
 \begin{abstract}
 Business process optimization through simulation has advanced along two prominent
@@ -120,13 +103,27 @@ measured perspectives.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Deep Reinforcement Learning, Business Process Simulation, Joint Optimization,
-Activity Routing, Resource Allocation, Flexible Masked Policy,
-Service-Level Agreements, Markov Decision Process.
+Deep Reinforcement Learning,
+Business Process Simulation,
+Joint Optimization,
+Activity Routing,
+Resource Allocation,
+Flexible Masked Policy,
+Service-Level Agreements,
+Markov Decision Process.
 \end{IEEEkeywords}
 
 
 \IEEEpeerreviewmaketitle
+
+
+\clearpage
+\tableofcontents
+\clearpage
+\listoftables
+\listoffigures
+\vfill
+
 
 \section{Introduction}
 \label{sec:introduction}
@@ -411,7 +408,7 @@ applied to business process optimization
 \cite{Optimizing_Resource_Allocation_Policies, Learning_policies_drl}.
 
 Among DRL algorithms, \emph{Proximal Policy Optimization} (PPO)
-\cite{lapan_2024_drll_handson} has emerged as one of the most widely adopted
+\cite{schulman2017ppo} has emerged as one of the most widely adopted
 actor-critic methods, combining sample efficiency, training stability, and
 ease of implementation. PPO's central mechanism is a \emph{clipping
 objective} that constrains the magnitude of each policy update, preventing
@@ -440,7 +437,7 @@ that would collapse training, a particularly important property in the
 long-horizon, non-stationary setting of business process simulation where
 rewards are sparse at the episode level.
 
-PPO estimates advantages using \emph{Generalized Advantage Estimation} (GAE),
+PPO estimates advantages using \emph{Generalized Advantage Estimation} (GAE) \cite{schulman2016gae},
 which combines multi-step returns with exponential weighting to balance the
 bias-variance trade-off in gradient estimation. GAE with parameters $\gamma$
 (discount factor) and $\lambda$ (trace decay) produces smoother and more
@@ -508,7 +505,7 @@ the real process accurately, the agent learns policies that exploit
 simulation artifacts rather than genuine process structure. Two
 components play distinct roles in this setting. The \textbf{simulator}
 executes the business process faithfully taking into account calendar availability,
-resources capabilities, advancing cases according
+resource capabilities, advancing cases according
 to a control-flow model and predicting processing and waiting times.
 The \textbf{environment} wraps the simulator and mediates interaction
 with the agent, translating the simulation state into an observable
@@ -635,7 +632,7 @@ positions, and the MDP is solved with Monte Carlo simulation to
 estimate state values. The action space is defined over abstract
 state-cluster pairs rather than concrete activity-resource pairs,
 which limits the granularity of the recommendations and prevents
-direct control over activities assignment, but provides the agent
+direct control over activity assignment, but provides the agent
 a broader action space allowing not a specific intervention but a map
 of actions that can lead to a better KPI optimization.
 
@@ -770,17 +767,13 @@ Learn uncertainty-aware intervention policies under resource constraints \\ \hli
 RL & Generic KPI & DRL Base. & Trace Clust., Action & AS IS & No & PrPM &
 Recommend optimal next actions via MDP policy iteration over trace clusters \\ \hline
 \textbf{\citeauthor{Leveraging_Counterfactuals}~\cite{Leveraging_Counterfactuals}} &
-Grad. Boost. & Cycle Time & Seq. Base. & Activities \& Res. & No, trace Reconstruction & Yes & PrPM &
+Grad. Boost. & Cycle Time & Seq. Base. & Activities \& Res. & N/A (trace-based) & Yes & PrPM &
 Recommend joint activity--resource pairs via counterfactual search over a cycle-time predictor \\ \hline
 \textbf{This work} &
 DRL (PPO) & Cycle Time (SLA) & Heur.\ \& Log & Activities \& Res. & AS IS \& What-if & Yes & RA \& PrPM &
 Learn a flexible joint policy over activity routing and resource allocation via a tunable masked policy \\ \hline
 \end{tabularx}
-\caption{Characterization of related work. All surveyed approaches
-operate at the whole-process level. The Action Space column is the
-most diagnostic dimension: resource allocation approaches restrict
-control to the resource policy interface, while PrPM approaches
-operate on interventions or abstract cluster transitions. To the best of our knowledge, no prior work in process optimization has jointly controlled activity routing and resource allocation through a tunable masked policy learned over a full stochastic simulation.}
+\caption{Characterization of related work}
 \label{tab:CharacterizationTable}
 \end{table*}
 
@@ -1091,7 +1084,7 @@ environment, state representation, flexible masked policy, agent
 architecture, reward function, and regularization mechanism that
 together implement the MDP formulation of
 Section~\ref{sec:problem_definition}. Figure~\ref{img:C4Context}
-provides a system-level view of the five containers that compose
+provides a container-level view of the five containers that compose
 this system: the \textbf{Initializer}, which bootstraps the simulation
 model from the event log; the \textbf{Discrete-Event Simulator},
 which executes the process faithfully according to its policy
@@ -1105,11 +1098,7 @@ analyzing the results produced by the Evaluator.
 
 \begin{figure}[!ht]
   \centerline{\includegraphics[width=\columnwidth]{images/c4_context.png}}
-  \caption{C4 context view of the system. The process analyst
-  interacts with the Initializer to configure the simulation and
-  with the Evaluator to analyze results. The five containers,
-  Initializer, Discrete-Event Simulator, Simulation Environment,
-  RL Agent, and Evaluator, form the complete optimization pipeline.}
+  \caption{C4 container view of the system}
   \label{img:C4Context}
 \end{figure}
 
@@ -1137,11 +1126,7 @@ altering the underlying simulation logic.
 \begin{figure}[!ht]
   \centerline{\includegraphics[width=\columnwidth]{images/env_architecture.png}}
   \caption{Component-level architecture of the Simulation Environment
-  and RL Agent. The environment exposes four functions to the agent:
-  state representation, action masking, action selection, and reward
-  computation. The agent's two output heads, activity and resource,
-  feed back into the masking layer before a joint action is executed
-  in the simulator.}
+  and RL Agent}
   \label{img:Architecture}
 \end{figure}
 
@@ -1455,7 +1440,7 @@ information without distorting the compliance objective.
 \subsection{Regularized Training Objective}
 \label{subsec:regularization_method}
 
-The approximation developed so far equips the agent with several
+The approach developed so far equips the agent with several
 mechanisms to reach the desired outcome: a well-defined objective, a
 reward function that encodes SLA compliance, and a flexible mask that
 restricts the action space to plausible activities. None of these,
@@ -1560,7 +1545,7 @@ BPIC12\_W & 3{,}030 & 16{,}338 &  6 &  47 &    735 \\
 BPIC17\_W & 7{,}402 & 53{,}332 &  7 & 105 & 1{,}843 \\
 \bottomrule
 \end{tabular}
-\caption{Training event logs (BPIC12\_W and BPIC17\_W retain only
+\caption[Training event logs]{Training event logs (BPIC12\_W and BPIC17\_W retain only
 W-activities with start and complete timestamps).}
 \label{tab:datasets}
 \end{table}
@@ -1590,7 +1575,7 @@ DM-DRL  & Empirical Markov & PPO (res.\ only)   & Resource-only DRL \\
 DRL-DRL & PPO (joint)      & PPO (joint)        & Full joint DRL \\
 \bottomrule
 \end{tabular}
-\caption{Evaluation policies. All share the same feasibility masks.}
+\caption[Evaluation policies]{Evaluation policies. All share the same feasibility masks.}
 \label{tab:policies}
 \end{table}
 
@@ -1615,7 +1600,7 @@ BPIC12\_W & $T_{75}$ & 2 & 0.9 & 0.3 \\
 BPIC17\_W & $T_{75}$ & 3 & 0.9 & 0.1 \\
 \bottomrule
 \end{tabular}
-\caption{Flexibility parameters per log.}
+\caption{Flexibility parameters per log}
 \label{tab:training}
 \end{table}
 
@@ -1657,7 +1642,7 @@ Resource & CWD & Avg.\ EMD of active resource counts \\
   & CTD & 1-Wasserstein on cycle-time histogram \\
 \bottomrule
 \end{tabular}
-\caption{Evaluation metrics~\cite{framework_for_measuring_the_quality_of_business_process_simulation_models}.
+\caption[Evaluation metrics]{Evaluation metrics~\cite{framework_for_measuring_the_quality_of_business_process_simulation_models}.
 Similarity metrics: lower is better ($\downarrow$).}
 \label{tab:metrics}
 \end{table}
@@ -1704,7 +1689,7 @@ bottom within each log.
   & CIR & \underline{+32.8{\tiny(±0.3)}} & \underline{+33.2{\tiny(±0.1)}} & \underline{+33.3{\tiny(±0.0)}} \\
 \bottomrule
 \end{tabular}
-\caption{CR (\%) and CIR (\%) at $T_{75}$ (training target).
+\caption[CR and CIR at $T_{75}$]{CR (\%) and CIR (\%) at $T_{75}$ (training target).
 Values: mean (±95\% CI). Higher is better ($\uparrow$).
 Best per (log, metric) pair underlined.}
 \label{tab:compliance_t75}
@@ -1762,7 +1747,7 @@ confirming that routing control is necessary for full compliance.
   & CIR & +32.0{\tiny(±2.7)} & \underline{+88.0{\tiny(±1.8)}} & $-$29.3{\tiny(±1.4)} & \underline{+94.4{\tiny(±0.3)}} & +24.3{\tiny(±1.0)} & \underline{+99.2{\tiny(±0.1)}} \\
 \bottomrule
 \end{tabular}
-\caption{CR (\%) and CIR (\%) across all thresholds for DM-DRL and
+\caption[CR and CIR across all thresholds]{CR (\%) and CIR (\%) across all thresholds for DM-DRL and
 DRL-DRL. Values: mean (±95\% CI). Higher is better ($\uparrow$).
 Best per row underlined.
 $^\dagger$$T_{75}$ is the training target; remaining thresholds
@@ -1801,47 +1786,62 @@ are necessary.
 \subsection{Similarity Analysis}
 \label{subsec:similarity}
 
-Table~\ref{tab:similarity_ref} anchors simulator fidelity against two reference frames. The upper block positions DM-RR among established simulators: DM-RR (train) reports the distance to the log from which the model was built; DM-RR (test) reports it against the held-out split, which was never observed during simulator construction; it is included here solely for comparison. On CTD, DM-RR falls below both SIMOD and ServiceMiner on AC\_CRE and BPIC17\_W, indicating closer cycle-time reproduction; NGD is higher across all three logs, a structural consequence of the XOR-only routing approximation, which cannot reproduce every control-flow path present in the data.
-The lower block provides a natural scale anchor. Train vs Test reports the distance between the two temporal splits of the same event log, capturing the intrinsic variability of the process itself. Simulator distances of a similar order of magnitude suggest the model reproduces the process at a fidelity comparable to the drift between data splits. As simulator validation is not the focus of this work, this comparison should be interpreted as an indicative reference rather than a strict benchmark.
+Table~\ref{tab:similarity_ref} situates DM-RR relative to two
+reference points, so that the results reported in the sections that
+follow can be interpreted against a known scale rather than in
+isolation. DM-RR~(test) is reported only to preserve consistency with
+the evaluation convention of
+\citeauthor{framework_for_measuring_the_quality_of_business_process_simulation_models}~\cite{framework_for_measuring_the_quality_of_business_process_simulation_models},
+whose contribution is the similarity framework itself; the present
+work does not propose or validate a new simulator, and this
+comparison should not be read as such. The relevant baseline for the
+remainder of the evaluation is DM-RR~(train), since every optimized
+policy reported subsequently is compared against the same training
+split; its distances therefore establish what constitutes a low,
+moderate, or high deviation in this context. SIMOD and ServiceMiner
+are included as external points of comparison, against which DM-RR
+performs competitively: it achieves lower CTD on AC\_CRE and
+BPIC17\_W, indicating closer cycle-time reproduction, although its
+NGD is consistently higher across all three logs, a structural
+consequence of the XOR-only routing approximation, which cannot
+represent every control-flow path present in the data.
 
-\begin{table}[!ht]
+The final row, Self-Distance, reports the distance between two
+temporal splits (train and test) of the same event log and thus reflects the process's
+own intrinsic variability, independent of any simulator. It provides
+a practical upper bound on the fidelity any model could reasonably be
+expected to achieve: a simulated distance of comparable magnitude
+indicates that the simulator's deviation from the reference log is on
+the same order as the deviation the process exhibits from itself
+across time. Taken together, these two reference points indicate that
+DM-RR, while not without limitations, provides a reasonably faithful
+foundation for the optimization results discussed in the remainder of
+this chapter.
+
+\begin{table*}[!ht]
 \centering\small
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{llcc}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular}{l cc cc cc}
 \toprule
-\textbf{Log} & \textbf{Source} & \textbf{NGD} & \textbf{CTD} \\
+& \multicolumn{2}{c}{\textbf{AC\_CRE}} & \multicolumn{2}{c}{\textbf{BPIC12\_W}} & \multicolumn{2}{c}{\textbf{BPIC17\_W}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+\textbf{Source} & \textbf{NGD} & \textbf{CTD} & \textbf{NGD} & \textbf{CTD} & \textbf{NGD} & \textbf{CTD} \\
 \midrule
-\multirow{5}{*}{AC\_CRE}
-& DM-RR (train) & 0.26{\tiny(±0.00)} & 34.2{\tiny(±4.1)} \\
-& DM-RR (test)  & 0.24{\tiny(±0.01)} & 50.6{\tiny(±4.6)} \\
-& SIMOD         & 0.24{\tiny(±0.01)} & 62.2{\tiny(±1.7)} \\
-& ServiceMiner  & 0.13{\tiny(±0.01)} & 99.9{\tiny(±0.3)} \\
-\cmidrule(lr){2-4}
-& Train vs Test & 0.17               & 26.2              \\
+DM-RR (train) & 0.26{\tiny(±0.00)} & 34.2{\tiny(±4.1)}  & 0.36{\tiny(±0.00)} & 170.3{\tiny(±9.6)} & 0.18{\tiny(±0.00)} & 44.9{\tiny(±1.8)} \\
+DM-RR (test)  & 0.24{\tiny(±0.01)} & 50.6{\tiny(±4.6)}  & 0.34{\tiny(±0.00)} & 142.3{\tiny(±9.6)} & 0.16{\tiny(±0.00)} & 15.2{\tiny(±1.8)} \\
+SIMOD         & 0.24{\tiny(±0.01)} & 62.2{\tiny(±1.7)}  & 0.56{\tiny(±0.00)} & 93.5{\tiny(±0.7)}  & 0.37{\tiny(±0.00)} & 102.9{\tiny(±0.8)} \\
+ServiceMiner  & 0.13{\tiny(±0.01)} & 99.9{\tiny(±0.3)}  & 0.13{\tiny(±0.01)} & 124.2{\tiny(±0.3)} & 0.06{\tiny(±0.00)} & 112.8{\tiny(±0.2)} \\
 \midrule
-\multirow{5}{*}{BPIC12\_W}
-& DM-RR (train) & 0.36{\tiny(±0.00)} & 170.3{\tiny(±9.6)} \\
-& DM-RR (test)  & 0.34{\tiny(±0.00)} & 142.3{\tiny(±9.6)} \\
-& SIMOD         & 0.56{\tiny(±0.00)} & 93.5{\tiny(±0.7)}  \\
-& ServiceMiner  & 0.13{\tiny(±0.01)} & 124.2{\tiny(±0.3)} \\
-\cmidrule(lr){2-4}
-& Train vs Test & 0.08               & 28.0               \\
-\midrule
-\multirow{5}{*}{BPIC17\_W}
-& DM-RR (train) & 0.18{\tiny(±0.00)} & 44.9{\tiny(±1.8)} \\
-& DM-RR (test)  & 0.16{\tiny(±0.00)} & 15.2{\tiny(±1.8)} \\
-& SIMOD         & 0.37{\tiny(±0.00)} & 102.9{\tiny(±0.8)} \\
-& ServiceMiner  & 0.06{\tiny(±0.00)} & 112.8{\tiny(±0.2)} \\
-\cmidrule(lr){2-4}
-& Train vs Test & 0.08               & 30.9               \\
+Self-Distance & 0.17 & 26.2 & 0.08 & 28.0 & 0.08 & 30.9 \\
 \bottomrule
 \end{tabular}
-\caption{DM-RR vs.\ SIMOD and ServiceMiner
+\caption[Simulator fidelity vs.\ SIMOD and ServiceMiner]{DM-RR vs.\ SIMOD and ServiceMiner
 \cite{framework_for_measuring_the_quality_of_business_process_simulation_models}
-on NGD and CTD ($\downarrow$ better). Lower block shows reference
-distances between data splits.}
+on NGD and CTD ($\downarrow$ better). Bottom row shows
+reference distances between data splits.}
 \label{tab:similarity_ref}
-\end{table}
+\end{table*}
 
 Table~\ref{tab:similarity_drl} compares similarity metrics across
 all evaluated policies, including \textit{+no flex}: DRL-DRL with
@@ -1945,7 +1945,7 @@ representation.
     & 128.6$^{\pm33.5}$ & 275.5$^{\pm.8}$ \\
 \bottomrule
 \end{tabular}
-\caption{Similarity distances: mean$^{\pm\text{95\% CI}}$ ($\downarrow$ better).
+\caption[Similarity distances across policies]{Similarity distances: mean$^{\pm\text{95\% CI}}$ ($\downarrow$ better).
 Best (lowest) value per (log, metric) pair underlined.
 $^{\dagger}$DRL-DRL CTD on BPIC12\_W falls below DM-RR because
 cycle-time compression narrows the distribution toward the
@@ -1958,7 +1958,7 @@ DRL-DRL raises NGD to 0.46--0.75 relative to the DM-RR baseline of
 0.18--0.36. The no-flex ablation isolates the mask's contribution:
 removing it nearly doubles NGD on AC\_CRE (0.46\,$\to$\,0.89) and
 raises it substantially on BPIC17\_W (0.68\,$\to$\,0.84) with a
-CIR difference of at most 0.001, demonstrating that the mask halves
+CIR difference of at most 0.1 pp, demonstrating that the mask halves
 control-flow deviation at zero performance cost.
 On BPIC12\_W the mask provides no benefit; NGD decreases without
 it (0.75\,$\to$\,0.64), consistent with the Markov calibration
@@ -2093,7 +2093,7 @@ four configurations.
   & CIR & +33.3{\tiny(±0.0)} & +33.0{\tiny(±0.0)} & +33.3{\tiny(±0.0)} & +33.1{\tiny(±0.1)} \\
 \bottomrule
 \end{tabular}
-\caption{CR (\%) and CIR (\%) at $T_{75}$ across the mask $\times$ KL
+\caption[CR and CIR under mask $\times$ KL configurations]{CR (\%) and CIR (\%) at $T_{75}$ across the mask $\times$ KL
 configurations of DRL-DRL. Values: mean (±95\% CI). Higher is better
 ($\uparrow$).}
 \label{tab:reg_compliance}
@@ -2152,7 +2152,7 @@ the four configurations.
   & ~~+KL     & \underline{0.50{\tiny(±.00)}} & 216.1{\tiny(±45.2)} & 166.7{\tiny(±.5)} & 1.66{\tiny(±.03)} & 1.05{\tiny(±.03)} & 131.7{\tiny(±34.5)} & 238.5{\tiny(±.5)} \\
 \bottomrule
 \end{tabular}
-\caption{Similarity distances across the mask $\times$ KL
+\caption[Similarity distances under mask $\times$ KL configurations]{Similarity distances across the mask $\times$ KL
 configurations of DRL-DRL: mean$^{\pm\text{95\% CI}}$ ($\downarrow$
 better). Best NGD per log underlined.}
 \label{tab:reg_similarity}
